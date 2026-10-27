@@ -37,7 +37,7 @@
 ## 6. Сборка и контейнер
 
 - [x] 6.1 Скрипты `pnpm dev` (сервер на :3000 + vite с прокси `/ws` и `/api`), `pnpm build`, `pnpm test`. Проверка: `pnpm build && pnpm test` проходят локально
-- [ ] 6.2 Многоступенчатый `Dockerfile` (node:24-slim, рантайм без dev-зависимостей, `HEALTHCHECK` на `/healthz`, порт 3000) и `.dockerignore`. Проверка: если локально есть Docker, `docker build .` и `docker run -p 3000:3000` отдают сайт; если нет — проверяет job `docker` в CI (сборка + `/healthz`)
+- [x] 6.2 Многоступенчатый `Dockerfile` (node:24-slim, рантайм без dev-зависимостей, `HEALTHCHECK` на `/healthz`, порт 3000) и `.dockerignore`. Проверка: если локально есть Docker, `docker build .` и `docker run -p 3000:3000` отдают сайт; если нет — сборка в Coolify на VPS и ответ `/healthz` на watch.umri.online
 - [x] 6.3 README на русском: что это, как запустить локально, как устроены синхронизация и деплой. Проверка: файл есть и описывает команды из 6.1
 
 ## 7. GitHub и деплой в Coolify
@@ -45,7 +45,7 @@
 - [x] 7.1 Создать публичный репозиторий `viktor-morhun/wtgt` через `gh repo create`, сделать первый коммит и push в `main`. Проверка: `gh repo view viktor-morhun/wtgt` показывает код, а `.env` в репозитории нет
 - [x] 7.2 В README описать настройки приложения для Coolify: публичный репозиторий, build pack Dockerfile, порт 3000, health check `/healthz`, домен — поддомен пользователя. Проверка: раздел есть в README
 - [ ] 7.3 GitHub Action `ci.yml`: на push и PR запускать `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Проверка: workflow первого push зелёный (`gh run list`)
-- [ ] 7.4 (делает пользователь) Добавить поддомен и приложение в Coolify, включить автодеплой из `main`. Проверка: `curl https://<поддомен>/healthz` → `{"ok":true}`
+- [x] 7.4 Через Coolify API создать проект `wtgt` и приложение из публичного репозитория (Dockerfile, порт 3000, health check `/healthz`, домен `https://watch.umri.online`), настроить webhook GitHub → Coolify для автодеплоя из `main`. Проверка: `curl https://watch.umri.online/healthz` → `{"ok":true}`, ping webhook — 200
 
 ## 8. Финальная проверка
 

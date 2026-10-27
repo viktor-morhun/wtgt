@@ -47,16 +47,13 @@ pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm build
 
 ## Деплой в Coolify
 
-Приложение — один контейнер из `Dockerfile`, без volume и секретов.
+Приложение — один контейнер из `Dockerfile`, без volume и секретов. Развёрнуто так:
 
-1. DNS: A-запись `watch.umri.online` → IP VPS.
-2. Coolify → проект → **New Resource → Public Repository** → `https://github.com/viktor-morhun/wtgt`, ветка `main`.
-3. **Build Pack:** Dockerfile. **Ports Exposes:** `3000`.
-4. **Domains:** `https://watch.umri.online` — Traefik сам выпустит сертификат Let's Encrypt.
-5. **Health Check:** путь `/healthz`, порт `3000` (в образе есть и свой `HEALTHCHECK`).
-6. Deploy. Проверка: `curl https://watch.umri.online/healthz` → `{"ok":true}`.
-7. Автодеплой: включить **Auto Deploy** и добавить webhook GitHub по инструкции Coolify (Webhooks → GitHub), либо жать Redeploy.
+- Coolify → проект **wtgt** → environment `production` → приложение **wtgt** из публичного репозитория `https://github.com/viktor-morhun/wtgt`, ветка `main`.
+- Build Pack: Dockerfile, порт `3000`, health check `/healthz`.
+- Домен `https://watch.umri.online` (A-запись на VPS) — сертификат выпускает Traefik (Let's Encrypt).
+- Автодеплой: webhook GitHub (push) → `http://79.76.37.180:8000/webhooks/source/github/events/manual` с секретом из настроек приложения (Webhooks → GitHub). Push в `main` — новый деплой.
 
-WebSocket идёт через тот же домен (`/ws`), отдельных настроек Traefik не нужно. При редеплое общая сессия начинается заново.
+WebSocket идёт через тот же домен (`/ws`), отдельных настроек Traefik не нужно. При редеплое общая сессия начинается заново. Проверка: `curl https://watch.umri.online/healthz` → `{"ok":true}`.
 
 GitHub Actions ([ci.yml](.github/workflows/ci.yml)) на каждый push проверяет код и что Docker-образ собирается и отвечает на `/healthz`.
