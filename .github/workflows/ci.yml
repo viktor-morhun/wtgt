@@ -1,0 +1,42 @@
+# Проверки на каждый push и PR; деплой делает Coolify из ветки main
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Образ собирается и отвечает на /healthz
+        run: |
+          docker build -t wtgt .
+          docker run -d --name wtgt -p 3000:3000 wtgt
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:3000/healthz && break; sleep 1; done
+          curl -fsS http://127.0.0.1:3000/ | grep -q '<div id="root">'
+          docker logs wtgt
