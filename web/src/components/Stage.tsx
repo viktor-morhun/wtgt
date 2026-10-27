@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import {
   formatTime,
+  NAME_MAX,
   QUALITIES,
   RATES,
   type Cause,
@@ -13,7 +14,8 @@ import * as cmd from '../commands';
 import { Icon } from '../icons';
 import { useNet } from '../net';
 import { pickQuality, useVideoClock, type Playback } from '../playback';
-import { setSettings, useSettings } from '../settings';
+import { getSettings, setSettings, useSettings } from '../settings';
+import { Avatars } from './Avatars';
 import { WaveProgress } from './WaveProgress';
 
 /** Панель прячется через столько бездействия во время просмотра (spec player-ui). */
@@ -34,7 +36,7 @@ interface Props {
   episode: Episode | null;
   playback: Playback;
   joined: boolean;
-  onJoin(): void;
+  onJoin(name: string): void;
   fullscreen: boolean;
 }
 
@@ -276,6 +278,7 @@ export function Stage(props: Props) {
   );
 }
 
+/** Вход в комнату: ник и «Присоединиться» — нажатие заодно разрешает звук (spec rooms, player-ui). */
 function Join({
   release,
   episode,
@@ -285,10 +288,19 @@ function Join({
   release: Release;
   episode: Episode | null;
   session: Session | null;
-  onJoin(): void;
+  onJoin(name: string): void;
 }) {
+  const { members } = useNet();
+  const [name, setName] = useState(() => getSettings().name);
+  const valid = name.trim().length > 0;
   return (
-    <div className="stage-cover join">
+    <form
+      className="stage-cover join"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (valid) onJoin(name.trim());
+      }}
+    >
       {release.poster && <div className="ambient" style={{ backgroundImage: `url(${release.poster})` }} />}
       {release.poster && <img className="join-poster" src={release.poster} alt="" />}
       <div className="join-meta">
@@ -297,11 +309,27 @@ function Join({
           {episode ? episodeLabel(episode) : 'Загрузка…'}
           {session && episode && (session.paused ? ' · на паузе' : ' · уже смотрят')}
         </div>
+        {members.length > 0 && (
+          <div className="join-members">
+            <Avatars members={members} />
+            <span className="hint small">{members.map((m) => m.name).join(', ')}</span>
+          </div>
+        )}
       </div>
-      <button className="btn btn-wide rp" onClick={onJoin} autoFocus>
+      <div className="search-field join-name">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Твой ник"
+          maxLength={NAME_MAX}
+          autoFocus={!name}
+          aria-label="Ник"
+        />
+      </div>
+      <button className="btn btn-wide rp" disabled={!valid} autoFocus={!!name}>
         Присоединиться
       </button>
-    </div>
+    </form>
   );
 }
 
@@ -320,7 +348,8 @@ function ErrorScreen({ text, hint, onRetry }: { text: string; hint?: string; onR
 
 /** Короткая подсказка поверх видео: кто-то нажал паузу, перемотал, сменил скорость или серию. */
 function Osd({ session, release }: { session: Session | null; release: Release | null }) {
-  const { cause } = useNet();
+  const { cause, by } = useNet();
+  const { name: me } = useSettings();
   const [text, setText] = useState<{ key: number; text: string } | null>(null);
   const version = session?.version;
 
@@ -338,7 +367,9 @@ function Osd({ session, release }: { session: Session | null; release: Release |
       release: release?.title ?? 'Другой тайтл',
       end: 'Конец',
     };
-    setText({ key: session.version, text: t[cause] });
+    // чужое действие — с автором, своё — без
+    const text = by && by !== me ? `${by}: ${t[cause].toLowerCase()}` : t[cause];
+    setText({ key: session.version, text });
     const timer = setTimeout(() => setText(null), OSD_MS);
     return () => clearTimeout(timer);
     // подсказка — на каждое новое изменение сессии

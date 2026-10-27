@@ -4,7 +4,8 @@ import fastifyWebsocket from '@fastify/websocket';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import { parseClientMessage, type ServerMessage } from '@wtgt/shared';
 import { CatalogError, type Catalog } from './anilibria';
-import { Hub, type Client } from './hub';
+import type { Client } from './hub';
+import { Rooms } from './rooms';
 
 type Options = {
   catalog: Catalog;
@@ -12,15 +13,25 @@ type Options = {
   /** собранный web/dist; без него сервер отдаёт только API и /ws */
   webDist?: string;
   logger?: FastifyServerOptions['logger'];
+  rooms?: ConstructorParameters<typeof Rooms>[2];
 };
 
 /** Ping по WS чаще таймаута простоя Traefik, заодно отсекает зависшие соединения. */
 const HEARTBEAT_MS = 25_000;
+/** Код закрытия WS: комнаты нет и создать нельзя (неверный код или лимит). */
+export const WS_CLOSE_NO_ROOM = 4404;
 
-export async function buildApp({ catalog, defaultRelease, webDist, logger = false }: Options) {
+export async function buildApp({
+  catalog,
+  defaultRelease,
+  webDist,
+  logger = false,
+  rooms: roomOpts,
+}: Options) {
   const app = Fastify({ logger });
-  const hub = new Hub(catalog, defaultRelease);
-  app.decorate('hub', hub);
+  const rooms = new Rooms(catalog, defaultRelease, roomOpts);
+  app.decorate('rooms', rooms);
+  app.addHook('onClose', async () => rooms.close());
 
   await app.register(fastifyWebsocket, { options: { maxPayload: 4096 } });
 
@@ -40,12 +51,22 @@ export async function buildApp({ catalog, defaultRelease, webDist, logger = fals
     },
   );
 
-  app.get('/ws', { websocket: true }, (socket) => {
+  app.post('/api/rooms', async (_req, reply) => {
+    const code = rooms.create();
+    if (!code) return reply.code(503).send({ code: 'unavailable', message: 'Слишком много комнат' });
+    return { code };
+  });
+
+  app.get<{ Querystring: { room?: string } }>('/ws', { websocket: true }, (socket, req) => {
+    const code = req.query.room ?? '';
     const client: Client = {
       send: (msg: ServerMessage) => {
         if (socket.readyState === socket.OPEN) socket.send(JSON.stringify(msg));
       },
     };
+    const hub = rooms.join(code, client);
+    if (!hub) return socket.close(WS_CLOSE_NO_ROOM, 'no room');
+
     let alive = true;
     socket.on('pong', () => (alive = true));
     const heartbeat = setInterval(() => {
@@ -61,9 +82,8 @@ export async function buildApp({ catalog, defaultRelease, webDist, logger = fals
     });
     socket.on('close', () => {
       clearInterval(heartbeat);
-      hub.leave(client);
+      rooms.leave(code, client);
     });
-    hub.join(client);
   });
 
   if (webDist && existsSync(webDist)) {
@@ -79,6 +99,13 @@ export async function buildApp({ catalog, defaultRelease, webDist, logger = fals
         );
       },
     });
+    // SPA: /r/<код> и прочие адреса страниц — тот же index.html
+    app.setNotFoundHandler((req, reply) => {
+      if (req.method !== 'GET' || req.url.startsWith('/api/') || req.url.startsWith('/assets/')) {
+        return reply.code(404).send({ code: 'not_found', message: 'Not found' });
+      }
+      return reply.header('cache-control', 'no-cache').sendFile('index.html');
+    });
   }
 
   return app;
@@ -86,6 +113,6 @@ export async function buildApp({ catalog, defaultRelease, webDist, logger = fals
 
 declare module 'fastify' {
   interface FastifyInstance {
-    hub: Hub;
+    rooms: Rooms;
   }
 }

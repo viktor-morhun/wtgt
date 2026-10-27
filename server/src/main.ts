@@ -13,9 +13,6 @@ const app = await buildApp({
   logger: { level: process.env.LOG_LEVEL ?? 'info' },
 });
 
-// релиз по умолчанию подгружаем сразу; если AniLibria лежит — подгрузится при первом подключении
-void app.hub.ensureEpisode();
-
 const shutdown = async () => {
   await app.close();
   process.exit(0);

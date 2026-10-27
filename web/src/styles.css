@@ -902,3 +902,101 @@ button {
   color: var(--bg);
   border-radius: 12px;
 }
+
+/* ---------- Комнаты: карточка «новая комната», аватары, участники (из listen-together) ---------- */
+.rc-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rc-title {
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rc-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--hint);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.new-room {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+  padding: 12px;
+  text-align: left;
+  border-radius: 24px;
+  border: 1.5px dashed var(--dim);
+  animation: rise 0.5s var(--spring-soft) both;
+}
+.new-room.is-pressed {
+  border-radius: 18px;
+}
+.new-room:disabled {
+  opacity: 0.4;
+}
+.new-room-plus {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 30px;
+  font-weight: 300;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-radius 0.5s var(--spring);
+}
+.new-room.is-pressed .new-room-plus {
+  border-radius: 50%;
+}
+
+.avatar {
+  position: relative;
+  flex: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 0 2px var(--bg);
+  animation: pop 0.5s var(--spring) both;
+  transition:
+    opacity 0.4s var(--ease),
+    filter 0.4s var(--ease);
+}
+.avatar + .avatar {
+  margin-left: -8px;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  filter: grayscale(1);
+}
+.members {
+  flex: none;
+  display: flex;
+  align-items: center;
+}
+.members-more {
+  margin-left: 4px;
+  font-size: 12px;
+  color: var(--hint);
+}

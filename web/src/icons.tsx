@@ -1,5 +1,16 @@
-/** Иконки: play/pause/prev/next/volume/muted — как в listen-together, остальные — в том же стиле. */
+/** Иконки: back/play/pause/prev/next/volume/muted — как в listen-together, остальные — в том же стиле. */
 export const Icon = {
+  back: (
+    <svg viewBox="0 0 24 24" aria-hidden>
+      <path d="M14.7 5.3a1 1 0 0 1 0 1.4L9.41 12l5.3 5.3a1 1 0 0 1-1.42 1.4l-6-6a1 1 0 0 1 0-1.4l6-6a1 1 0 0 1 1.42 0Z" />
+    </svg>
+  ),
+  share: (
+    <svg viewBox="0 0 24 24" aria-hidden className="stroke">
+      <path d="M12 15V4M8 8l4-4 4 4" />
+      <path d="M5 12v6.5A1.5 1.5 0 0 0 6.5 20h11a1.5 1.5 0 0 0 1.5-1.5V12" />
+    </svg>
+  ),
   play: (
     <svg viewBox="0 0 24 24" aria-hidden>
       <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.4-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5Z" />

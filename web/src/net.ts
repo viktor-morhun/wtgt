@@ -4,17 +4,22 @@ import {
   type Cause,
   type ClientMessage,
   type ClockSample,
+  type Member,
   type ServerMessage,
   type Session,
 } from '@wtgt/shared';
 
-/** Состояние связи с сервером: сессия, зрители, ошибки команд (spec synced-playback). */
+/** Состояние связи с комнатой: сессия, участники, ошибки команд (spec synced-playback, rooms). */
 export type Net = {
+  room: string | null;
   online: boolean;
   session: Session | null;
-  /** что изменило сессию последним — для подсказки поверх видео */
+  /** что изменило сессию последним и кто — для подсказки поверх видео */
   cause: Cause | null;
-  viewers: number;
+  by: string | null;
+  members: Member[];
+  /** id этого соединения в members */
+  you: string | null;
   error: { message: string; at: number } | null;
 };
 
@@ -26,7 +31,17 @@ const DEAD_MS = 12_000;
 const BACKOFF_MIN_MS = 500;
 const BACKOFF_MAX_MS = 5_000;
 
-let state: Net = { online: false, session: null, cause: null, viewers: 0, error: null };
+const initial: Net = {
+  room: null,
+  online: false,
+  session: null,
+  cause: null,
+  by: null,
+  members: [],
+  you: null,
+  error: null,
+};
+let state: Net = initial;
 const subs = new Set<() => void>();
 let ws: WebSocket | null = null;
 let backoff = BACKOFF_MIN_MS;
@@ -35,6 +50,8 @@ let samples: ClockSample[] = [];
 let lastPong = 0;
 let pingTimer: ReturnType<typeof setInterval> | undefined;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
+/** ник после «Присоединиться» — повторяем его при каждом переподключении */
+let helloName: string | null = null;
 
 function set(patch: Partial<Net>): void {
   state = { ...state, ...patch };
@@ -52,12 +69,18 @@ export function send(msg: ClientMessage): boolean {
 
 const ping = () => send({ type: 'ping', t0: Date.now() });
 
+/** Представиться в комнате (и сменить ник); запоминается до выхода из комнаты. */
+export function hello(name: string): void {
+  helloName = name;
+  send({ type: 'hello', name });
+}
+
 function onMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case 'state':
-      return set({ session: msg.session, cause: msg.cause });
-    case 'viewers':
-      return set({ viewers: msg.count });
+      return set({ session: msg.session, cause: msg.cause, by: msg.by });
+    case 'members':
+      return set({ members: msg.members, you: msg.you });
     case 'pong':
       lastPong = Date.now();
       samples = [...samples, { t0: msg.t0, server: msg.server, t1: lastPong }].slice(-CLOCK_SAMPLES);
@@ -75,20 +98,23 @@ function drop(sock: WebSocket): void {
   sock.close();
   clearInterval(pingTimer);
   set({ online: false });
-  retryTimer = setTimeout(connect, backoff);
+  retryTimer = setTimeout(open, backoff);
   backoff = Math.min(BACKOFF_MAX_MS, backoff * 2);
 }
 
-export function connect(): void {
+function open(): void {
   clearTimeout(retryTimer);
-  if (ws) return;
-  const sock = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  if (ws || !state.room) return;
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const sock = new WebSocket(`${proto}://${location.host}/ws?room=${encodeURIComponent(state.room)}`);
   ws = sock;
   sock.onopen = () => {
+    if (ws !== sock) return;
     backoff = BACKOFF_MIN_MS;
     lastPong = Date.now();
     samples = [];
     set({ online: true });
+    if (helloName) send({ type: 'hello', name: helloName });
     // первые замеры часов — сразу пачкой, дальше ping заодно служит проверкой связи
     for (let i = 0; i < CLOCK_SAMPLES; i++) setTimeout(ping, i * 150);
     clearInterval(pingTimer);
@@ -104,11 +130,32 @@ export function connect(): void {
   sock.onclose = () => drop(sock);
 }
 
+/** Подключиться к комнате; прежнее соединение и состояние сбрасываются. */
+export function enterRoom(code: string): void {
+  if (state.room === code) return;
+  leaveRoom();
+  set({ ...initial, room: code });
+  open();
+}
+
+export function leaveRoom(): void {
+  clearTimeout(retryTimer);
+  clearInterval(pingTimer);
+  helloName = null;
+  const sock = ws;
+  ws = null;
+  if (sock) {
+    sock.onopen = sock.onclose = sock.onmessage = null;
+    sock.close();
+  }
+  set(initial);
+}
+
 // вернулись в сеть или во вкладку — переподключаемся сразу, без ожидания backoff
 const kick = () => {
-  if (ws) return;
+  if (ws || !state.room) return;
   backoff = BACKOFF_MIN_MS;
-  connect();
+  open();
 };
 window.addEventListener('online', kick);
 document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && kick());

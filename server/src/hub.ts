@@ -4,6 +4,7 @@ import {
   type Cause,
   type ClientMessage,
   type ErrorCode,
+  type Member,
   type Release,
   type ServerMessage,
   type Session,
@@ -11,14 +12,16 @@ import {
 import { CatalogError, isPlayable, type Catalog } from './anilibria';
 
 export type Client = { send(msg: ServerMessage): void };
+type Peer = { id: string; name: string | null };
 
 /** Позиция паузы от клиента берётся, если она не дальше этого от расчётной (design D4). */
 const PAUSE_TRUST_S = 2;
 
-/** Единая общая сессия просмотра: состояние в памяти, рассылка всем подключённым. */
+/** Сессия просмотра одной комнаты: состояние в памяти, рассылка всем подключённым. */
 export class Hub {
   session: Session;
-  private readonly clients = new Set<Client>();
+  private readonly clients = new Map<Client, Peer>();
+  private nextId = 1;
 
   constructor(
     private readonly catalog: Catalog,
@@ -36,8 +39,13 @@ export class Hub {
     };
   }
 
-  get viewers(): number {
+  /** подключённые, включая ещё не представившихся */
+  get size(): number {
     return this.clients.size;
+  }
+
+  get members(): Member[] {
+    return [...this.clients.values()].flatMap((p) => (p.name ? [{ id: p.id, name: p.name }] : []));
   }
 
   /** Подставить первую серию, если релиз ещё не загружался (старт при недоступной AniLibria). */
@@ -52,13 +60,13 @@ export class Hub {
     }
     const first = release.episodes.find(isPlayable);
     if (!first || this.session.episodeId || this.session.alias !== alias) return;
-    this.commit({ ...this.session, episodeId: first.id, position: 0, paused: true }, 'release');
+    this.commit({ ...this.session, episodeId: first.id, position: 0, paused: true }, 'release', null);
   }
 
   join(client: Client): void {
-    this.clients.add(client);
-    client.send({ type: 'state', session: this.session, cause: 'join' });
-    this.broadcastViewers();
+    this.clients.set(client, { id: String(this.nextId++), name: null });
+    client.send({ type: 'state', session: this.session, cause: 'join', by: null });
+    this.sendMembers(client);
     void this.ensureEpisode();
   }
 
@@ -66,37 +74,44 @@ export class Hub {
     if (!this.clients.delete(client)) return;
     // никого не осталось — ставим на паузу, чтобы при возвращении не убежать на полсерии вперёд
     if (this.clients.size === 0 && !this.session.paused) {
-      this.commit({ ...freeze(this.session, this.now()), paused: true }, 'pause');
+      this.commit({ ...freeze(this.session, this.now()), paused: true }, 'pause', null);
     }
-    this.broadcastViewers();
+    this.broadcastMembers();
   }
 
   async handle(client: Client, msg: ClientMessage): Promise<void> {
+    const peer = this.clients.get(client);
+    if (!peer) return;
     const s = this.session;
+    const by = peer.name;
     switch (msg.type) {
+      case 'hello':
+        peer.name = msg.name;
+        this.broadcastMembers();
+        return;
       case 'ping':
         client.send({ type: 'pong', t0: msg.t0, server: this.now() });
         return;
       case 'release':
-        return this.switchRelease(client, msg.input);
+        return this.switchRelease(client, msg.input, by);
     }
     if (!s.episodeId) return; // релиз не загружен — управлять нечем
 
     switch (msg.type) {
       case 'play':
-        this.commit({ ...freeze(s, this.now()), paused: false }, 'play');
+        this.commit({ ...freeze(s, this.now()), paused: false }, 'play', by);
         return;
       case 'pause': {
         const f = freeze(s, this.now());
         const position = Math.abs(msg.position - f.position) <= PAUSE_TRUST_S ? msg.position : f.position;
-        this.commit({ ...f, paused: true, position }, 'pause');
+        this.commit({ ...f, paused: true, position }, 'pause', by);
         return;
       }
       case 'seek':
-        this.commit({ ...freeze(s, this.now()), position: msg.position }, 'seek');
+        this.commit({ ...freeze(s, this.now()), position: msg.position }, 'seek', by);
         return;
       case 'rate':
-        this.commit({ ...freeze(s, this.now()), rate: msg.rate }, 'rate');
+        this.commit({ ...freeze(s, this.now()), rate: msg.rate }, 'rate', by);
         return;
       case 'episode': {
         const release = await this.release(client);
@@ -107,6 +122,7 @@ export class Hub {
         this.commit(
           { ...this.session, episodeId: ep.id, position: 0, paused: true, anchor: this.now() },
           'episode',
+          by,
         );
         return;
       }
@@ -130,15 +146,19 @@ export class Hub {
     const next = release.episodes.slice(i + 1).find(isPlayable);
     const now = this.now();
     if (i >= 0 && next) {
-      this.commit({ ...this.session, episodeId: next.id, position: 0, paused: false, anchor: now }, 'next');
+      this.commit(
+        { ...this.session, episodeId: next.id, position: 0, paused: false, anchor: now },
+        'next',
+        null,
+      );
     } else {
       const f = freeze(this.session, now);
       const duration = release.episodes[i]?.duration || f.position;
-      this.commit({ ...f, paused: true, position: Math.min(f.position, duration) }, 'end');
+      this.commit({ ...f, paused: true, position: Math.min(f.position, duration) }, 'end', null);
     }
   }
 
-  private async switchRelease(client: Client, input: string): Promise<void> {
+  private async switchRelease(client: Client, input: string, by: string | null): Promise<void> {
     const alias = parseAlias(input);
     if (!alias) return this.error(client, 'not_found', 'Релиз не найден');
     let release: Release;
@@ -160,6 +180,7 @@ export class Hub {
         anchor: this.now(),
       },
       'release',
+      by,
     );
   }
 
@@ -173,20 +194,25 @@ export class Hub {
     }
   }
 
-  private commit(next: Session, cause: Cause): void {
+  private commit(next: Session, cause: Cause, by: string | null): void {
     this.session = { ...next, version: this.session.version + 1 };
-    this.broadcast({ type: 'state', session: this.session, cause });
+    this.broadcast({ type: 'state', session: this.session, cause, by });
   }
 
   private error(client: Client, code: ErrorCode, message: string): void {
     client.send({ type: 'error', code, message });
   }
 
-  private broadcastViewers(): void {
-    this.broadcast({ type: 'viewers', count: this.clients.size });
+  private sendMembers(client: Client): void {
+    const peer = this.clients.get(client);
+    if (peer) client.send({ type: 'members', members: this.members, you: peer.id });
+  }
+
+  private broadcastMembers(): void {
+    for (const c of this.clients.keys()) this.sendMembers(c);
   }
 
   private broadcast(msg: ServerMessage): void {
-    for (const c of this.clients) c.send(msg);
+    for (const c of this.clients.keys()) c.send(msg);
   }
 }

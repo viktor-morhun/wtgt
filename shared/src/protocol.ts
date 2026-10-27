@@ -45,7 +45,34 @@ export const sessionSchema = z.object({
 });
 export type Session = z.infer<typeof sessionSchema>;
 
+export const NAME_MAX = 24;
+/** Ник: 1–24 символа после обрезки пробелов, без управляющих символов. */
+export const nameSchema = z
+  .string()
+  .transform((s) =>
+    [...s]
+      .filter((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127)
+      .join('')
+      .trim(),
+  )
+  .pipe(z.string().min(1).max(NAME_MAX));
+
+/** Код комнаты: 6 символов, строчные буквы и цифры без похожих 0/o и 1/l. */
+export const ROOM_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
+export const ROOM_CODE_LENGTH = 6;
+export const isRoomCode = (s: string): boolean =>
+  new RegExp(`^[${ROOM_ALPHABET}]{${ROOM_CODE_LENGTH}}$`).test(s);
+
+export function newRoomCode(random: (n: number) => number = (n) => Math.floor(Math.random() * n)): string {
+  let code = '';
+  for (let i = 0; i < ROOM_CODE_LENGTH; i++) code += ROOM_ALPHABET[random(ROOM_ALPHABET.length)];
+  return code;
+}
+
+export type Member = { id: string; name: string };
+
 export const clientMessageSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('hello'), name: nameSchema }),
   z.object({ type: z.literal('play') }),
   z.object({ type: z.literal('pause'), position }),
   z.object({ type: z.literal('seek'), position }),
@@ -63,8 +90,10 @@ export type Cause = 'join' | 'play' | 'pause' | 'seek' | 'rate' | 'episode' | 'r
 export type ErrorCode = 'not_found' | 'unavailable' | 'bad_request';
 
 export type ServerMessage =
-  | { type: 'state'; session: Session; cause: Cause }
-  | { type: 'viewers'; count: number }
+  /** by — ник автора изменения (null — сервер сам: старт, автопереход) */
+  | { type: 'state'; session: Session; cause: Cause; by: string | null }
+  /** участники комнаты, которые представились; you — id этого соединения */
+  | { type: 'members'; members: Member[]; you: string }
   | { type: 'pong'; t0: number; server: number }
   | { type: 'error'; code: ErrorCode; message: string };
 

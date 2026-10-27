@@ -507,3 +507,89 @@ svg.stroke text {
     display: none;
   }
 }
+
+/* ---------- Главная: ник и «создать комнату» ---------- */
+.home {
+  max-width: 480px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 0 16px calc(32px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.home .hero {
+  padding-top: 0;
+}
+.home .hero h1 {
+  font-size: 56px;
+}
+.home-form {
+  margin-top: 28px;
+  animation: rise 0.6s var(--spring-soft) 0.08s both;
+}
+.home-form h3 {
+  margin: 0 4px 10px;
+}
+.home-form .new-room {
+  margin-top: 14px;
+}
+.home .rc-meta {
+  white-space: normal;
+}
+
+/* ---------- Шапка комнаты ---------- */
+.topbar .back {
+  width: 36px;
+  height: 36px;
+}
+.topbar .back svg {
+  width: 20px;
+  height: 20px;
+}
+.topbar-members {
+  flex: none;
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+}
+.avatar-me {
+  background: var(--text);
+  color: var(--bg);
+}
+.topbar .btn-small {
+  flex: none;
+}
+.topbar .btn:not(.btn-tonal) svg.stroke {
+  stroke: var(--bg);
+}
+
+/* ---------- Вход в комнату ---------- */
+.join-members {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.join-members .members .avatar {
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.join-name {
+  width: min(320px, 100%);
+  flex: none;
+}
+.join-name input {
+  text-align: center;
+  padding-left: 18px;
+  padding-right: 18px;
+}
+
+@media (max-width: 899px) {
+  .home .hero h1 {
+    font-size: 44px;
+  }
+  .join-members {
+    display: none;
+  }
+}

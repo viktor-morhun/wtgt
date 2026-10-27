@@ -44,8 +44,17 @@
 
 - [x] 7.1 Создать публичный репозиторий `viktor-morhun/wtgt` через `gh repo create`, сделать первый коммит и push в `main`. Проверка: `gh repo view viktor-morhun/wtgt` показывает код, а `.env` в репозитории нет
 - [x] 7.2 В README описать настройки приложения для Coolify: публичный репозиторий, build pack Dockerfile, порт 3000, health check `/healthz`, домен — поддомен пользователя. Проверка: раздел есть в README
-- [ ] 7.3 GitHub Action `ci.yml`: на push и PR запускать `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Проверка: workflow первого push зелёный (`gh run list`)
+- [x] 7.3 GitHub Action `ci.yml`: на push и PR запускать `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`. Проверка: workflow первого push зелёный (`gh run list`)
 - [x] 7.4 Через Coolify API создать проект `wtgt` и приложение из публичного репозитория (Dockerfile, порт 3000, health check `/healthz`, домен `https://watch.umri.online`), настроить webhook GitHub → Coolify для автодеплоя из `main`. Проверка: `curl https://watch.umri.online/healthz` → `{"ok":true}`, ping webhook — 200
+
+## 9. Комнаты и ники
+
+- [x] 9.1 shared: `hello`, `members`, `by` в `state`, код комнаты и ник (схемы + генерация кода). Проверка: unit-тесты на валидацию ника/кода
+- [x] 9.2 Сервер: `Rooms` (Map код → Hub, создание по коду, удаление пустых через 30 мин, лимит), `POST /api/rooms`, WS `/ws?room=`, `hello` и `members`, `by`, SPA fallback для `/r/*`. Проверка: интеграционные тесты — изоляция двух комнат, ники в members, `by` у паузы, удаление пустой комнаты, `/r/abc` отдаёт index.html
+- [x] 9.3 Клиент: маршруты `/` и `/r/<код>`, подключение к комнате, переподключение в ту же комнату. Проверка: ссылка комнаты открывается в новой вкладке и попадает в ту же комнату
+- [x] 9.4 Главная: ник + «Создать комнату» (стиль listen-together), создатель входит без экрана присоединения. Проверка: e2e — создать комнату, сразу видно видео и свой ник в шапке
+- [x] 9.5 Вход по ссылке: поле ника на экране «Присоединиться», ник запоминается; шапка — «назад», аватарки участников, «Пригласить» (копирование/Поделиться), смена ника; подсказки с автором. Проверка: e2e на локальном сервере — вторая вкладка входит с ником, у обоих два ника, пауза показывает «<ник>: пауза»
+- [ ] 9.6 README и деплой. Проверка: `pnpm lint && pnpm typecheck && pnpm test && pnpm build`, push в `main`, Coolify пересобрал, `/healthz` и `/r/<код>` на watch.umri.online отвечают
 
 ## 8. Финальная проверка
 
