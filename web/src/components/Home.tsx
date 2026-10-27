@@ -43,9 +43,6 @@ export function Home() {
           <br />
           вместе
         </h1>
-        <div className="hint">
-          Аниме с AniLibria в одной комнате: пауза, перемотка и скорость — у всех сразу.
-        </div>
       </div>
       <form
         className="home-form"
@@ -54,7 +51,6 @@ export function Home() {
           void create();
         }}
       >
-        <h3>как тебя зовут</h3>
         <div className="search-field">
           <input
             value={name}
@@ -69,7 +65,6 @@ export function Home() {
           <span className="new-room-plus">{busy ? <span className="spinner" /> : '+'}</span>
           <span className="rc-main">
             <span className="rc-title">создать комнату</span>
-            <span className="rc-meta">ссылку на неё отправишь другу</span>
           </span>
         </button>
         {error && <div className="release-error">{error}</div>}

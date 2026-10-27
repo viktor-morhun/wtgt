@@ -219,7 +219,6 @@ export function Room({ code }: { code: string }) {
       <aside className="d-right">
         <div className="d-right-head">
           <h3>серии</h3>
-          {release && <span className="hint small">{release.episodes.length}</span>}
         </div>
         {release ? (
           <Episodes release={release} currentId={session?.episodeId ?? null} playing={playing} />

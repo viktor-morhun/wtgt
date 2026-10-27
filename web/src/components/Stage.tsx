@@ -103,13 +103,7 @@ export function Stage(props: Props) {
 
   let overlay: ReactNode = null;
   if (props.releaseError && !release) {
-    overlay = (
-      <ErrorScreen
-        text={props.releaseError}
-        onRetry={props.onReloadRelease}
-        hint="Сессия сохраняется — остальные продолжают смотреть"
-      />
-    );
+    overlay = <ErrorScreen text={props.releaseError} onRetry={props.onReloadRelease} />;
   } else if (playback.error) {
     overlay = (
       <ErrorScreen
@@ -121,12 +115,12 @@ export function Stage(props: Props) {
       />
     );
   } else if (!joined && release) {
-    overlay = <Join release={release} episode={episode} session={session} onJoin={props.onJoin} />;
+    overlay = <Join release={release} episode={episode} onJoin={props.onJoin} />;
   } else if (playback.blocked) {
     overlay = (
       <div className="stage-cover">
         <button className="btn btn-wide rp" onClick={() => void videoRef.current?.play()}>
-          {Icon.play} Нажми, чтобы смотреть
+          {Icon.play} Смотреть
         </button>
       </div>
     );
@@ -282,12 +276,10 @@ export function Stage(props: Props) {
 function Join({
   release,
   episode,
-  session,
   onJoin,
 }: {
   release: Release;
   episode: Episode | null;
-  session: Session | null;
   onJoin(name: string): void;
 }) {
   const { members } = useNet();
@@ -305,14 +297,10 @@ function Join({
       {release.poster && <img className="join-poster" src={release.poster} alt="" />}
       <div className="join-meta">
         <div className="title">{release.title}</div>
-        <div className="subtitle">
-          {episode ? episodeLabel(episode) : 'Загрузка…'}
-          {session && episode && (session.paused ? ' · на паузе' : ' · уже смотрят')}
-        </div>
+        {episode && <div className="subtitle">{episodeLabel(episode)}</div>}
         {members.length > 0 && (
           <div className="join-members">
             <Avatars members={members} />
-            <span className="hint small">{members.map((m) => m.name).join(', ')}</span>
           </div>
         )}
       </div>
@@ -333,12 +321,10 @@ function Join({
   );
 }
 
-function ErrorScreen({ text, hint, onRetry }: { text: string; hint?: string; onRetry(): void }) {
+function ErrorScreen({ text, onRetry }: { text: string; onRetry(): void }) {
   return (
     <div className="stage-cover">
-      <div className="screen-mark">◌</div>
       <div className="title">{text}</div>
-      {hint && <div className="hint small">{hint}</div>}
       <button className="btn btn-tonal rp" onClick={onRetry}>
         Повторить
       </button>
@@ -363,7 +349,7 @@ function Osd({ session, release }: { session: Session | null; release: Release |
       seek: `→ ${formatTime(session.position)}`,
       rate: `${session.rate}x`,
       episode: ep ? episodeLabel(ep) : 'Другая серия',
-      next: ep ? `Дальше: ${episodeLabel(ep).toLowerCase()}` : 'Следующая серия',
+      next: ep ? episodeLabel(ep) : 'Следующая серия',
       release: release?.title ?? 'Другой тайтл',
       end: 'Конец',
     };
