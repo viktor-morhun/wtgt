@@ -118,13 +118,7 @@ export function App() {
               </div>
             )}
           </div>
-          <span
-            className={`presence${net.online ? '' : ' offline'}`}
-            title={net.online ? 'на связи' : 'нет связи'}
-          >
-            <i />
-            {net.online ? viewersLabel(net.viewers) : 'нет связи'}
-          </span>
+          <span className="presence">{net.online ? viewersLabel(net.viewers) : 'нет связи'}</span>
           <button className="btn btn-small btn-tonal rp" onClick={() => setSheet(true)} title="Сменить тайтл">
             {Icon.link}
             <span className="topbar-btn-text">Сменить тайтл</span>
@@ -143,9 +137,6 @@ export function App() {
           onJoin={join}
           fullscreen={fullscreen}
         />
-        <div className="hotkeys hint small">
-          пробел — пауза · ← → — 10 с · Shift + &lt; &gt; — скорость · F — полный экран · N / P — серии
-        </div>
       </main>
       <aside className="d-right">
         <div className="d-right-head">

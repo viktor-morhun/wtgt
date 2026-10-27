@@ -46,7 +46,6 @@ export function ReleaseSheet({ currentAlias, onClose }: { currentAlias: string; 
           submit();
         }}
       >
-        <div className="sheet-title">Сменить тайтл — переключится у всех</div>
         <div className="search-field">
           <input
             autoFocus

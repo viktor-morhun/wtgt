@@ -69,26 +69,10 @@
 }
 .presence {
   flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   color: var(--hint);
   font-size: 13px;
   letter-spacing: 0.02em;
   white-space: nowrap;
-}
-.presence i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--text);
-  box-shadow: 0 0 10px var(--text);
-  animation: breathe 3.5s ease-in-out infinite;
-}
-.presence.offline i {
-  background: var(--dim);
-  box-shadow: none;
-  animation: none;
 }
 
 /* ---------- Сцена с видео ---------- */
@@ -363,12 +347,6 @@ svg.stroke text {
   white-space: nowrap;
 }
 
-.hotkeys {
-  text-align: center;
-  letter-spacing: 0.02em;
-  color: var(--dim);
-}
-
 /* ---------- Серии ---------- */
 .episodes .row {
   width: calc(100% + 16px);
@@ -465,9 +443,6 @@ svg.stroke text {
     position: static;
     padding: 18px 0 8px;
   }
-  .hotkeys {
-    display: none;
-  }
 
   /* управление на весь кадр: кнопки по центру, полоса и чипы снизу */
   .vctl {
@@ -526,10 +501,9 @@ svg.stroke text {
     display: none;
   }
 }
-/* палец: громкость — кнопками телефона, подсказки по клавишам не нужны */
+/* палец: громкость — кнопками телефона */
 @media (hover: none) {
-  .vctl .volume,
-  .hotkeys {
+  .vctl .volume {
     display: none;
   }
 }
