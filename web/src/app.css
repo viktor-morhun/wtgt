@@ -1,0 +1,535 @@
+/*
+ * Просмотр: раскладка как в веб-версии listen-together (центр + правая колонка),
+ * только в центре — видео, а справа вместо очереди — серии.
+ */
+#root {
+  max-width: none;
+  margin: 0;
+  padding: 0;
+}
+
+.app {
+  height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  column-gap: 24px;
+  padding: 0 24px;
+}
+
+.d-center {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 0 16px;
+}
+.d-right {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  padding: 0 8px 24px;
+}
+.d-right-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 24px 0 8px;
+  background: var(--bg);
+}
+.d-right-head h3 {
+  margin: 0;
+}
+
+/* ---------- Шапка ---------- */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  animation: rise 0.5s var(--spring-soft) both;
+}
+.topbar-title {
+  flex: 1;
+  min-width: 0;
+}
+.topbar h1 {
+  font-size: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar .btn svg {
+  width: 16px;
+  height: 16px;
+}
+.presence {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--hint);
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.presence i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text);
+  box-shadow: 0 0 10px var(--text);
+  animation: breathe 3.5s ease-in-out infinite;
+}
+.presence.offline i {
+  background: var(--dim);
+  box-shadow: none;
+  animation: none;
+}
+
+/* ---------- Сцена с видео ---------- */
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  isolation: isolate;
+  /* поля вокруг кадра — поверхностью, чтобы сцена читалась на чёрном фоне */
+  background: var(--surface);
+  animation: rise 0.6s var(--spring-soft) 0.05s both;
+}
+.stage video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.stage-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.stage.idle,
+.stage.idle .stage-hit {
+  cursor: none;
+}
+.stage:fullscreen,
+.stage.is-fullscreen {
+  border-radius: 0;
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: auto;
+  margin: 0;
+}
+
+/* подсказка действия — пилюля-тост из listen-together, сверху по центру */
+.osd {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 4;
+  pointer-events: none;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.stage-status {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 70%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  font-size: 13px;
+  pointer-events: none;
+  animation: sheet-fade 0.25s var(--ease) both;
+}
+.stage-offline {
+  left: auto;
+  right: 16px;
+}
+
+/* вход, ошибки и «нажми, чтобы смотреть» поверх видео */
+.stage-cover {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  background: color-mix(in srgb, var(--bg) 72%, transparent);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: sheet-fade 0.3s var(--ease) both;
+}
+.stage-cover .btn-wide {
+  width: min(320px, 100%);
+  margin-top: 6px;
+}
+.join {
+  background: var(--bg);
+  overflow: hidden;
+  isolation: isolate;
+}
+.join-poster {
+  width: min(170px, 30%);
+  aspect-ratio: 7 / 10;
+  object-fit: cover;
+  border-radius: var(--radius);
+  box-shadow: 0 24px 60px var(--shadow);
+  animation: rise 0.6s var(--spring-soft) both;
+}
+.join-meta {
+  animation: rise 0.6s var(--spring-soft) 0.06s both;
+}
+
+/* ---------- Управление поверх видео ---------- */
+.vctl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 3;
+  padding: 56px 20px 14px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.88), rgba(0, 0, 0, 0.5) 55%, transparent);
+  pointer-events: none;
+  transition:
+    opacity 0.35s var(--ease),
+    transform 0.45s var(--spring-soft);
+}
+.vctl > * {
+  pointer-events: auto;
+}
+.stage.idle .vctl {
+  opacity: 0;
+  transform: translateY(14px);
+}
+.stage.idle .vctl * {
+  pointer-events: none;
+}
+.vctl .wave {
+  margin: 0 0 4px;
+}
+.vctl-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+}
+.vctl-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.vctl-side {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.vctl-end {
+  justify-content: flex-end;
+}
+.vctl-time {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.vctl-dim {
+  color: var(--hint);
+}
+.vctl .ctrl-main {
+  width: 64px;
+  height: 64px;
+}
+.vctl .ctrl-main svg {
+  width: 28px;
+  height: 28px;
+}
+.ctrl-sm {
+  width: 46px;
+  height: 46px;
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+}
+.ctrl-sm svg {
+  width: 22px;
+  height: 22px;
+}
+.ctrl:disabled {
+  opacity: 0.3;
+}
+svg.stroke {
+  fill: none !important;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+svg.stroke text {
+  fill: currentColor;
+  stroke: none;
+  font-size: 7.5px;
+  font-weight: 800;
+  font-family: inherit;
+}
+.vctl-btn {
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+}
+.vctl-btn svg {
+  width: 22px;
+  height: 22px;
+}
+.vctl .volume {
+  margin: 0;
+}
+.vctl .volume input {
+  width: 80px;
+}
+
+/* скорость и качество — чипы, меню чипов над кнопкой */
+.vmenu {
+  position: relative;
+}
+.vchip {
+  min-width: 56px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
+}
+.vmenu-pop {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: 0 18px 40px var(--shadow);
+  transform-origin: 80% 100%;
+  animation: menu-in 0.4s var(--spring) both;
+}
+.vmenu-pop .chip {
+  min-width: 72px;
+  font-variant-numeric: tabular-nums;
+}
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.85);
+  }
+}
+
+/* полоса перемотки: загруженное светлее остатка, над курсором — время */
+.wave-buffered {
+  stroke: var(--hint);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+.wave-tip {
+  position: absolute;
+  bottom: calc(100% - 2px);
+  translate: -50% 0;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.hotkeys {
+  text-align: center;
+  letter-spacing: 0.02em;
+  color: var(--dim);
+}
+
+/* ---------- Серии ---------- */
+.episodes .row {
+  width: calc(100% + 16px);
+}
+.ep-no {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface);
+  color: var(--hint);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: border-radius 0.45s var(--spring);
+}
+.row-current .ep-no {
+  background: var(--text);
+  color: var(--bg);
+  border-radius: 50%;
+}
+.row-current .eq i {
+  background: var(--bg);
+}
+.row-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.episodes .badge {
+  font-variant-numeric: tabular-nums;
+}
+@media (hover: hover) {
+  .episodes .row-button:not(:disabled):not(.row-current):hover {
+    background: var(--surface);
+  }
+  .ctrl-sm:not(:disabled):hover,
+  .vchip:hover {
+    background: var(--surface-2);
+  }
+}
+
+/* ---------- Шторка «сменить тайтл» ---------- */
+.release-sheet {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.release-sheet .btn-wide {
+  margin-top: 16px;
+}
+.release-error {
+  padding: 10px 8px 0;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+/* ---------- Телефон и узкое окно: сцена во всю ширину, серии под ней ---------- */
+@media (max-width: 899px) {
+  .app {
+    display: block;
+    height: auto;
+    padding: 0 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  .d-center {
+    padding: 0;
+    gap: 12px;
+  }
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: 0 -16px;
+    padding: 8px 16px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+  .topbar h1 {
+    font-size: 17px;
+  }
+  .stage {
+    flex: none;
+    aspect-ratio: 16 / 9;
+    margin: 0 -16px;
+    border-radius: 0;
+  }
+  .d-right {
+    overflow: visible;
+    padding: 0;
+  }
+  .d-right-head {
+    position: static;
+    padding: 18px 0 8px;
+  }
+  .hotkeys {
+    display: none;
+  }
+
+  /* управление на весь кадр: кнопки по центру, полоса и чипы снизу */
+  .vctl {
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 10px 6px;
+    background: rgba(0, 0, 0, 0.5);
+  }
+  .vctl-row {
+    display: flex;
+    justify-content: space-between;
+  }
+  .vctl-main {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    translate: -50% -50%;
+    gap: 8px;
+  }
+  .ctrl-sm {
+    width: 40px;
+    height: 40px;
+  }
+  .ctrl-sm svg {
+    width: 20px;
+    height: 20px;
+  }
+  .vctl .ctrl-main {
+    width: 56px;
+    height: 56px;
+  }
+  .vchip {
+    min-width: 0;
+    padding: 6px 10px;
+  }
+  .stage-cover {
+    gap: 8px;
+    padding: 12px;
+  }
+  .join-poster {
+    display: none;
+  }
+  .stage-cover .title {
+    font-size: 18px;
+  }
+  .stage-cover .btn-wide {
+    min-height: 46px;
+    margin-top: 2px;
+  }
+}
+@media (max-width: 420px) {
+  .topbar-btn-text,
+  .vctl-dim {
+    display: none;
+  }
+}
+/* палец: громкость — кнопками телефона, подсказки по клавишам не нужны */
+@media (hover: none) {
+  .vctl .volume,
+  .hotkeys {
+    display: none;
+  }
+}
