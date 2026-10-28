@@ -24,6 +24,16 @@ describe('ник и код комнаты', () => {
     expect(parseClientMessage(JSON.stringify({ type: 'hello', name: 'x'.repeat(25) }))).toBeNull();
   });
 
+  it('chat: обрезает пробелы, убирает управляющие символы, до 500 символов', () => {
+    expect(parseClientMessage(JSON.stringify({ type: 'chat', text: ' привет\n ' }))).toEqual({
+      type: 'chat',
+      text: 'привет',
+    });
+    expect(parseClientMessage('{"type":"chat","text":"  "}')).toBeNull();
+    expect(parseClientMessage(JSON.stringify({ type: 'chat', text: 'я'.repeat(500) }))).not.toBeNull();
+    expect(parseClientMessage(JSON.stringify({ type: 'chat', text: 'я'.repeat(501) }))).toBeNull();
+  });
+
   it('код комнаты: 6 символов из алфавита без похожих', () => {
     for (let i = 0; i < 50; i++) expect(isRoomCode(newRoomCode())).toBe(true);
     expect(isRoomCode('abc123')).toBe(false); // 1 нет в алфавите

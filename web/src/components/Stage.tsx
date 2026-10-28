@@ -16,6 +16,7 @@ import { useNet } from '../net';
 import { pickQuality, useVideoClock, type Playback } from '../playback';
 import { getSettings, setSettings, useSettings } from '../settings';
 import { Avatars } from './Avatars';
+import { ChatOverlay } from './Chat';
 import { WaveProgress } from './WaveProgress';
 
 /** Панель прячется через столько бездействия во время просмотра (spec player-ui). */
@@ -74,8 +75,11 @@ export function Stage(props: Props) {
     return () => clearTimeout(idleTimer.current);
   }, [playing]);
   useEffect(() => {
-    window.addEventListener('keydown', wake);
-    return () => window.removeEventListener('keydown', wake);
+    // набор сообщения в чате панель не будит
+    const onKey = (e: KeyboardEvent) =>
+      !(e.target as HTMLElement | null)?.closest('input, textarea') && wake();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const shown = active || !playing || menu !== null || !joined;
@@ -148,6 +152,7 @@ export function Stage(props: Props) {
         }}
       />
       <Osd session={session} release={release} />
+      {fullscreen && joined && <ChatOverlay />}
       {(playback.catchingUp || clock.waiting) && joined && !overlay && (
         <div className="stage-status">
           <span className="spinner" /> {playback.catchingUp ? 'догоняем…' : 'загрузка…'}

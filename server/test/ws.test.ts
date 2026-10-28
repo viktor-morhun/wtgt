@@ -134,6 +134,33 @@ describe('комната по WS', () => {
     a.close();
   });
 
+  it('чат: только представившимся, рассылается всем, история новым, не чаще 5 за 5 с', async () => {
+    const { url, room } = await start();
+    const code = await room();
+    const a = await connect(url(code));
+    expect(await a.next((m) => m.type === 'chat')).toMatchObject({ messages: [], history: true });
+    a.send({ type: 'chat', text: 'привет' });
+    expect(await a.next((m) => m.type === 'error')).toMatchObject({ code: 'bad_request' });
+
+    a.send({ type: 'hello', name: 'Витя' });
+    await a.next(names('Витя'));
+    a.send({ type: 'chat', text: '  привет  ' });
+    const sent = await a.next((m) => m.type === 'chat');
+    expect(sent).toMatchObject({ history: false, messages: [{ from: 'Витя', text: 'привет' }] });
+
+    const b = await connect(url(code));
+    const history = await b.next((m) => m.type === 'chat');
+    expect(history).toMatchObject({ history: true, messages: [{ from: 'Витя', text: 'привет' }] });
+
+    for (let i = 0; i < 5; i++) a.send({ type: 'chat', text: `${i}` });
+    expect(await a.next((m) => m.type === 'error')).toMatchObject({ code: 'too_fast' });
+    const got = [];
+    for (let i = 0; i < 4; i++) got.push(await b.next((m) => m.type === 'chat'));
+    expect(got.map((m) => m.type === 'chat' && m.messages[0]!.text)).toEqual(['0', '1', '2', '3']);
+    a.close();
+    b.close();
+  });
+
   it('пауза от B приходит A с автором', async () => {
     const { url, room } = await start();
     const code = await room();

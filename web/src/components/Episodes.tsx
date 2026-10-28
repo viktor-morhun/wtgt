@@ -8,17 +8,20 @@ export function Episodes({
   release,
   currentId,
   playing,
+  visible,
 }: {
   release: Release;
   currentId: string | null;
   playing: boolean;
+  /** вкладка серий открыта — к текущей серии прокручиваем и при открытии вкладки */
+  visible: boolean;
 }) {
   const currentRef = useRef<HTMLButtonElement>(null);
 
-  // к текущей серии — при открытии и при смене серии
+  // к текущей серии — при открытии вкладки и при смене серии
   useEffect(() => {
-    currentRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }, [currentId]);
+    if (visible) currentRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [currentId, visible]);
 
   return (
     <ul className="list episodes">

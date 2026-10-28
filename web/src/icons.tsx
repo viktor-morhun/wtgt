@@ -76,6 +76,11 @@ export const Icon = {
       <path d="M9 4v3.5A1.5 1.5 0 0 1 7.5 9H4M20 9h-3.5A1.5 1.5 0 0 1 15 7.5V4M15 20v-3.5a1.5 1.5 0 0 1 1.5-1.5H20M4 15h3.5A1.5 1.5 0 0 1 9 16.5V20" />
     </svg>
   ),
+  send: (
+    <svg viewBox="0 0 24 24" aria-hidden className="stroke">
+      <path d="M12 19V5M6 11l6-6 6 6" />
+    </svg>
+  ),
   link: (
     <svg viewBox="0 0 24 24" aria-hidden className="stroke">
       <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" />

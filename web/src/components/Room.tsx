@@ -6,7 +6,9 @@ import { usePlayback } from '../playback';
 import { useRelease } from '../release';
 import { navigate, roomPath } from '../route';
 import { getSettings, setSettings, useSettings } from '../settings';
+import { useVisualViewport } from '../viewport';
 import { Avatars } from './Avatars';
+import { Chat } from './Chat';
 import { Episodes } from './Episodes';
 import { CREATED_KEY } from './Home';
 import { NameSheet } from './NameSheet';
@@ -41,9 +43,22 @@ export function Room({ code }: { code: string }) {
   const [sheet, setSheet] = useState<'release' | 'name' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  const [tab, setTab] = useState<'chat' | 'episodes'>('chat');
+  const [typing, setTyping] = useState(false);
+  const [seenId, setSeenId] = useState(0);
   const onStale = useCallback(() => reload(true), [reload]);
   const playback = usePlayback({ video: videoRef, session, episode, quality, joined, onStale });
   const playing = !!session && !session.paused;
+  const chatVisible = tab === 'chat' && !fullscreen;
+  const lastChatId = net.chat.at(-1)?.id ?? 0;
+  const unread = chatVisible
+    ? 0
+    : net.chat.filter((m) => m.id > seenId && !net.mine.includes(m.fromId)).length;
+  useVisualViewport();
+
+  useEffect(() => {
+    if (chatVisible) setSeenId(lastChatId);
+  }, [chatVisible, lastChatId]);
 
   // соединение с комнатой живёт, пока открыта её страница
   useEffect(() => {
@@ -154,7 +169,7 @@ export function Room({ code }: { code: string }) {
   };
 
   return (
-    <div className="app">
+    <div className={`app${typing ? ' typing' : ''}`}>
       <main className="d-center">
         <header className="topbar">
           <button
@@ -217,14 +232,40 @@ export function Room({ code }: { code: string }) {
         />
       </main>
       <aside className="d-right">
-        <div className="d-right-head">
-          <h3>серии</h3>
+        <div className="d-right-head tabs" role="tablist">
+          <button
+            role="tab"
+            aria-selected={tab === 'chat'}
+            className={`chip tab rp${tab === 'chat' ? ' active' : ''}`}
+            onClick={() => setTab('chat')}
+          >
+            чат
+            {unread > 0 && <span className="tab-badge">{unread > 99 ? '99+' : unread}</span>}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'episodes'}
+            className={`chip tab rp${tab === 'episodes' ? ' active' : ''}`}
+            onClick={() => setTab('episodes')}
+          >
+            серии
+          </button>
         </div>
-        {release ? (
-          <Episodes release={release} currentId={session?.episodeId ?? null} playing={playing} />
-        ) : (
-          <div className="empty">{releaseError ?? <span className="spinner" />}</div>
-        )}
+        <div className="panel panel-chat" hidden={tab !== 'chat'}>
+          <Chat joined={joined} onTyping={setTyping} />
+        </div>
+        <div className="panel panel-episodes" hidden={tab !== 'episodes'}>
+          {release ? (
+            <Episodes
+              release={release}
+              currentId={session?.episodeId ?? null}
+              playing={playing}
+              visible={tab === 'episodes'}
+            />
+          ) : (
+            <div className="empty">{releaseError ?? <span className="spinner" />}</div>
+          )}
+        </div>
       </aside>
       {sheet === 'release' && session && (
         <ReleaseSheet currentAlias={session.alias} onClose={() => setSheet(null)} />

@@ -45,17 +45,27 @@ export const sessionSchema = z.object({
 });
 export type Session = z.infer<typeof sessionSchema>;
 
+/** Строка 1–max символов после обрезки пробелов, без управляющих символов. */
+const cleanText = (max: number) =>
+  z
+    .string()
+    .max(max * 4)
+    .transform((s) =>
+      [...s]
+        .filter((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127)
+        .join('')
+        .trim(),
+    )
+    .pipe(z.string().min(1).max(max));
+
 export const NAME_MAX = 24;
-/** Ник: 1–24 символа после обрезки пробелов, без управляющих символов. */
-export const nameSchema = z
-  .string()
-  .transform((s) =>
-    [...s]
-      .filter((c) => c.charCodeAt(0) >= 32 && c.charCodeAt(0) !== 127)
-      .join('')
-      .trim(),
-  )
-  .pipe(z.string().min(1).max(NAME_MAX));
+export const nameSchema = cleanText(NAME_MAX);
+
+export const CHAT_MAX = 500;
+export const chatTextSchema = cleanText(CHAT_MAX);
+
+/** Сообщение чата; fromId — id соединения автора, at — Date.now() сервера. */
+export type ChatMessage = { id: number; fromId: string; from: string; text: string; at: number };
 
 /** Код комнаты: 6 символов, строчные буквы и цифры без похожих 0/o и 1/l. */
 export const ROOM_ALPHABET = 'abcdefghijkmnpqrstuvwxyz23456789';
@@ -81,19 +91,22 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('release'), input: z.string().min(1).max(300) }),
   z.object({ type: z.literal('ended'), episodeId: z.string().min(1).max(100), version: z.number().int() }),
   z.object({ type: z.literal('ping'), t0: z.number() }),
+  z.object({ type: z.literal('chat'), text: chatTextSchema }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 /** Что изменило сессию — для коротких подсказок поверх видео. */
 export type Cause = 'join' | 'play' | 'pause' | 'seek' | 'rate' | 'episode' | 'release' | 'next' | 'end';
 
-export type ErrorCode = 'not_found' | 'unavailable' | 'bad_request';
+export type ErrorCode = 'not_found' | 'unavailable' | 'bad_request' | 'too_fast';
 
 export type ServerMessage =
   /** by — ник автора изменения (null — сервер сам: старт, автопереход) */
   | { type: 'state'; session: Session; cause: Cause; by: string | null }
   /** участники комнаты, которые представились; you — id этого соединения */
   | { type: 'members'; members: Member[]; you: string }
+  /** history — вся сохранённая история (при входе), иначе — новые сообщения */
+  | { type: 'chat'; messages: ChatMessage[]; history: boolean }
   | { type: 'pong'; t0: number; server: number }
   | { type: 'error'; code: ErrorCode; message: string };
 

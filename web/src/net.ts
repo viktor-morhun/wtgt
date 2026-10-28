@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import {
   clockOffset,
   type Cause,
+  type ChatMessage,
   type ClientMessage,
   type ClockSample,
   type Member,
@@ -20,9 +21,14 @@ export type Net = {
   members: Member[];
   /** id этого соединения в members */
   you: string | null;
+  /** id всех своих соединений за визит — чтобы свои сообщения оставались своими после переподключения */
+  mine: string[];
+  chat: ChatMessage[];
   error: { message: string; at: number } | null;
 };
 
+/** Столько сообщений чата держим в памяти вкладки. */
+const CHAT_KEEP = 200;
 /** Сколько последних ping/pong держим для медианы смещения часов. */
 const CLOCK_SAMPLES = 5;
 const PING_MS = 5_000;
@@ -39,6 +45,8 @@ const initial: Net = {
   by: null,
   members: [],
   you: null,
+  mine: [],
+  chat: [],
   error: null,
 };
 let state: Net = initial;
@@ -75,12 +83,21 @@ export function hello(name: string): void {
   send({ type: 'hello', name });
 }
 
+/** Сообщение в чат комнаты; false — нет связи. */
+export const say = (text: string): boolean => send({ type: 'chat', text });
+
 function onMessage(msg: ServerMessage): void {
   switch (msg.type) {
     case 'state':
       return set({ session: msg.session, cause: msg.cause, by: msg.by });
     case 'members':
-      return set({ members: msg.members, you: msg.you });
+      return set({
+        members: msg.members,
+        you: msg.you,
+        mine: state.mine.includes(msg.you) ? state.mine : [...state.mine, msg.you],
+      });
+    case 'chat':
+      return set({ chat: msg.history ? msg.messages : [...state.chat, ...msg.messages].slice(-CHAT_KEEP) });
     case 'pong':
       lastPong = Date.now();
       samples = [...samples, { t0: msg.t0, server: msg.server, t1: lastPong }].slice(-CLOCK_SAMPLES);

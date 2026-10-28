@@ -2,6 +2,7 @@ import {
   freeze,
   parseAlias,
   type Cause,
+  type ChatMessage,
   type ClientMessage,
   type ErrorCode,
   type Member,
@@ -12,16 +13,28 @@ import {
 import { CatalogError, isPlayable, type Catalog } from './anilibria';
 
 export type Client = { send(msg: ServerMessage): void };
-type Peer = { id: string; name: string | null };
+type Peer = {
+  id: string;
+  name: string | null;
+  /** когда отправлял последние сообщения чата */
+  sent: number[];
+};
 
 /** Позиция паузы от клиента берётся, если она не дальше этого от расчётной (design D4). */
 const PAUSE_TRUST_S = 2;
+/** Столько последних сообщений чата помнит комната и отдаёт входящим. */
+const CHAT_HISTORY = 100;
+/** Не больше CHAT_BURST сообщений за CHAT_WINDOW_MS от одного соединения. */
+const CHAT_BURST = 5;
+const CHAT_WINDOW_MS = 5_000;
 
 /** Сессия просмотра одной комнаты: состояние в памяти, рассылка всем подключённым. */
 export class Hub {
   session: Session;
   private readonly clients = new Map<Client, Peer>();
   private nextId = 1;
+  private chat: ChatMessage[] = [];
+  private nextChatId = 1;
 
   constructor(
     private readonly catalog: Catalog,
@@ -64,9 +77,10 @@ export class Hub {
   }
 
   join(client: Client): void {
-    this.clients.set(client, { id: String(this.nextId++), name: null });
+    this.clients.set(client, { id: String(this.nextId++), name: null, sent: [] });
     client.send({ type: 'state', session: this.session, cause: 'join', by: null });
     this.sendMembers(client);
+    client.send({ type: 'chat', messages: this.chat, history: true });
     void this.ensureEpisode();
   }
 
@@ -94,6 +108,8 @@ export class Hub {
         return;
       case 'release':
         return this.switchRelease(client, msg.input, by);
+      case 'chat':
+        return this.say(client, peer, msg.text);
     }
     if (!s.episodeId) return; // релиз не загружен — управлять нечем
 
@@ -129,6 +145,18 @@ export class Hub {
       case 'ended':
         return this.ended(msg.episodeId, msg.version);
     }
+  }
+
+  /** Сообщение в чат: только представившимся и не чаще CHAT_BURST за CHAT_WINDOW_MS. */
+  private say(client: Client, peer: Peer, text: string): void {
+    if (!peer.name) return this.error(client, 'bad_request', 'Сначала представься');
+    const now = this.now();
+    peer.sent = peer.sent.filter((t) => now - t < CHAT_WINDOW_MS);
+    if (peer.sent.length >= CHAT_BURST) return this.error(client, 'too_fast', 'Слишком часто');
+    peer.sent.push(now);
+    const message: ChatMessage = { id: this.nextChatId++, fromId: peer.id, from: peer.name, text, at: now };
+    this.chat = [...this.chat, message].slice(-CHAT_HISTORY);
+    this.broadcast({ type: 'chat', messages: [message], history: false });
   }
 
   /** Конец серии: следующая играет сразу; дубли от других клиентов отсекаются по version. */
