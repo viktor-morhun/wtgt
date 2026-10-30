@@ -357,6 +357,7 @@ function Osd({ session, release }: { session: Session | null; release: Release |
       next: ep ? episodeLabel(ep) : 'Следующая серия',
       release: release?.title ?? 'Другой тайтл',
       end: 'Конец',
+      restore: `${ep ? `${episodeLabel(ep)} · ` : ''}${formatTime(session.position)}`,
     };
     // чужое действие — с автором, своё — без
     const text = by && by !== me ? `${by}: ${t[cause].toLowerCase()}` : t[cause];

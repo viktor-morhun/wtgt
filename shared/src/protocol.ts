@@ -92,11 +92,20 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ended'), episodeId: z.string().min(1).max(100), version: z.number().int() }),
   z.object({ type: z.literal('ping'), t0: z.number() }),
   z.object({ type: z.literal('chat'), text: chatTextSchema }),
+  /** серия и время, сохранённые у зрителя: применяются, только если в комнате ещё ничего не меняли */
+  z.object({
+    type: z.literal('restore'),
+    alias: z.string().min(1).max(100),
+    episodeId: z.string().min(1).max(100),
+    position,
+    rate: rateSchema,
+  }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 /** Что изменило сессию — для коротких подсказок поверх видео. */
-export type Cause = 'join' | 'play' | 'pause' | 'seek' | 'rate' | 'episode' | 'release' | 'next' | 'end';
+export type Cause =
+  'join' | 'play' | 'pause' | 'seek' | 'rate' | 'episode' | 'release' | 'next' | 'end' | 'restore';
 
 export type ErrorCode = 'not_found' | 'unavailable' | 'bad_request' | 'too_fast';
 

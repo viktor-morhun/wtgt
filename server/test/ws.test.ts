@@ -284,6 +284,40 @@ describe('комната по WS', () => {
     expect(closed).toBe(WS_CLOSE_NO_ROOM);
   });
 
+  it('restore: пересозданная комната продолжает с сохранённых серии и времени, только пока её не трогали', async () => {
+    const { url, app } = await start();
+    const a = await connect(url('zzzzzz'));
+    await a.next(state('join'));
+    await app.rooms.hub('zzzzzz')!.ensureEpisode();
+    const ep5 = release.episodes[4]!.id;
+    a.send({ type: 'restore', alias: 'other', episodeId: ep5, position: 600, rate: 1.5 });
+    expect(await a.next(state('restore'))).toMatchObject({
+      by: null,
+      session: { alias: 'other', episodeId: ep5, position: 600, paused: true, rate: 1.5 },
+    });
+    // второй зритель со своим сохранённым временем ничего не перебивает
+    const b = await connect(url('zzzzzz'));
+    b.send({ type: 'restore', alias: 'tokyo-revengers', episodeId: ep5, position: 10, rate: 1 });
+    await sleep(100);
+    expect(b.log.filter(state('restore'))).toHaveLength(0);
+    expect(app.rooms.hub('zzzzzz')!.session).toMatchObject({ alias: 'other', position: 600 });
+    a.close();
+    b.close();
+  });
+
+  it('restore после действий зрителей игнорируется', async () => {
+    const { url, room, app } = await start();
+    const code = await room();
+    const a = await connect(url(code));
+    a.send({ type: 'seek', position: 30 });
+    await a.next(state('seek'));
+    a.send({ type: 'restore', alias: 'other', episodeId: release.episodes[4]!.id, position: 600, rate: 1 });
+    await sleep(100);
+    expect(a.log.filter(state('restore'))).toHaveLength(0);
+    expect(app.rooms.hub(code)!.session).toMatchObject({ alias: 'tokyo-revengers', position: 30 });
+    a.close();
+  });
+
   it('все ушли во время игры — пауза; пустая комната удаляется по таймауту', async () => {
     const { url, room, app } = await start(okCatalog, { rooms: { emptyTtlMs: 150 } });
     const code = await room();

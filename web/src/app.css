@@ -853,6 +853,53 @@ svg.stroke text {
   white-space: normal;
 }
 
+/* недавние комнаты: постер, тайтл, серия и время, полоска просмотренного */
+.recent {
+  margin-top: 32px;
+  animation: rise 0.6s var(--spring-soft) 0.16s both;
+}
+.recent h3 {
+  margin: 0 4px 6px;
+}
+.recent .row {
+  gap: 4px;
+  padding: 4px;
+  margin: 2px -4px;
+}
+.recent .row-tap {
+  padding: 6px;
+  border-radius: 16px;
+}
+.recent .row-main {
+  gap: 3px;
+}
+.recent-poster {
+  flex: none;
+  width: 44px;
+  height: 62px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--surface-2);
+  filter: grayscale(1);
+}
+.recent-bar {
+  display: block;
+  height: 3px;
+  margin-top: 4px;
+  border-radius: 2px;
+  background: var(--dim);
+  overflow: hidden;
+}
+.recent-bar i {
+  display: block;
+  height: 100%;
+  background: var(--text);
+}
+.recent .icon-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* ---------- Шапка комнаты ---------- */
 .topbar .back {
   width: 36px;

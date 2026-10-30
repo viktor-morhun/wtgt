@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { positionAt } from '@wtgt/shared';
 import * as cmd from '../commands';
+import { getRoom, saveRoom } from '../history';
 import { Icon } from '../icons';
-import { enterRoom, hello, leaveRoom, useNet } from '../net';
+import { enterRoom, hello, leaveRoom, serverNow, useNet } from '../net';
 import { usePlayback } from '../playback';
 import { useRelease } from '../release';
 import { navigate, roomPath } from '../route';
@@ -16,6 +18,8 @@ import { ReleaseSheet } from './ReleaseSheet';
 import { episodeLabel, Stage } from './Stage';
 
 const TOAST_MS = 2_000;
+/** Как часто запоминаем время просмотра, пока серия идёт. */
+const SAVE_MS = 5_000;
 
 /** Только что создал эту комнату на главной — входим сразу под сохранённым ником. */
 function takeCreated(code: string): boolean {
@@ -59,6 +63,39 @@ export function Room({ code }: { code: string }) {
   useEffect(() => {
     if (chatVisible) setSeenId(lastChatId);
   }, [chatVisible, lastChatId]);
+
+  // комната, серия и время — в историю браузера: на главной «недавние», в пересозданной комнате — продолжение
+  useEffect(() => {
+    if (!joined || !session?.episodeId || !release || !episode || release.alias !== session.alias) return;
+    // пересозданная комната с начала — не затираем сохранённое, пока сервер не применил restore
+    const blank =
+      session.paused &&
+      session.position === 0 &&
+      net.by === null &&
+      (net.cause === 'join' || net.cause === 'release');
+    if (blank && getRoom(code)) return;
+    const save = () =>
+      saveRoom({
+        code,
+        alias: release.alias,
+        title: release.title,
+        poster: release.poster,
+        episodeId: episode.id,
+        ordinal: episode.ordinal,
+        position: Math.min(24 * 3600, positionAt(session, serverNow())),
+        duration: episode.duration,
+        rate: session.rate,
+        at: Date.now(),
+      });
+    save();
+    const timer = session.paused ? undefined : setInterval(save, SAVE_MS);
+    window.addEventListener('pagehide', save);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('pagehide', save);
+      save();
+    };
+  }, [code, joined, session, release, episode, net.cause, net.by]);
 
   // соединение с комнатой живёт, пока открыта её страница
   useEffect(() => {

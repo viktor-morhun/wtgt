@@ -81,6 +81,11 @@ export const Icon = {
       <path d="M12 19V5M6 11l6-6 6 6" />
     </svg>
   ),
+  close: (
+    <svg viewBox="0 0 24 24" aria-hidden className="stroke">
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  ),
   link: (
     <svg viewBox="0 0 24 24" aria-hidden className="stroke">
       <path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1" />

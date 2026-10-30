@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import {
   clockOffset,
+  positionAt,
   type Cause,
   type ChatMessage,
   type ClientMessage,
@@ -9,6 +10,7 @@ import {
   type ServerMessage,
   type Session,
 } from '@wtgt/shared';
+import { getRoom } from './history';
 
 /** Состояние связи с комнатой: сессия, участники, ошибки команд (spec synced-playback, rooms). */
 export type Net = {
@@ -60,6 +62,8 @@ let pingTimer: ReturnType<typeof setInterval> | undefined;
 let retryTimer: ReturnType<typeof setTimeout> | undefined;
 /** ник после «Присоединиться» — повторяем его при каждом переподключении */
 let helloName: string | null = null;
+/** где была сессия, когда связь пропала: сервер мог перезапуститься и забыть комнату */
+let resume: Extract<ClientMessage, { type: 'restore' }> | null = null;
 
 function set(patch: Partial<Net>): void {
   state = { ...state, ...patch };
@@ -108,12 +112,22 @@ function onMessage(msg: ServerMessage): void {
   }
 }
 
+function savedRoom(code: string): Extract<ClientMessage, { type: 'restore' }> | null {
+  const e = getRoom(code);
+  return e && { type: 'restore', alias: e.alias, episodeId: e.episodeId, position: e.position, rate: e.rate };
+}
+
 function drop(sock: WebSocket): void {
   if (ws !== sock) return;
   ws = null;
   sock.onclose = sock.onmessage = null;
   sock.close();
   clearInterval(pingTimer);
+  const s = state.session;
+  if (s?.episodeId) {
+    const position = Math.min(24 * 3600, positionAt(s, serverNow()));
+    resume = { type: 'restore', alias: s.alias, episodeId: s.episodeId, position, rate: s.rate };
+  }
   set({ online: false });
   retryTimer = setTimeout(open, backoff);
   backoff = Math.min(BACKOFF_MAX_MS, backoff * 2);
@@ -132,6 +146,9 @@ function open(): void {
     samples = [];
     set({ online: true });
     if (helloName) send({ type: 'hello', name: helloName });
+    // комнату пересоздали — продолжаем с того места, где были (сервер возьмёт, только если её не трогали)
+    const saved = resume ?? savedRoom(state.room!);
+    if (saved) send(saved);
     // первые замеры часов — сразу пачкой, дальше ping заодно служит проверкой связи
     for (let i = 0; i < CLOCK_SAMPLES; i++) setTimeout(ping, i * 150);
     clearInterval(pingTimer);
@@ -159,6 +176,7 @@ export function leaveRoom(): void {
   clearTimeout(retryTimer);
   clearInterval(pingTimer);
   helloName = null;
+  resume = null;
   const sock = ws;
   ws = null;
   if (sock) {

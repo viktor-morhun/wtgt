@@ -35,6 +35,8 @@ export class Hub {
   private nextId = 1;
   private chat: ChatMessage[] = [];
   private nextChatId = 1;
+  /** в комнате ещё никто ничего не менял — можно восстановить серию и время, сохранённые у зрителя */
+  private pristine = true;
 
   constructor(
     private readonly catalog: Catalog,
@@ -73,7 +75,7 @@ export class Hub {
     }
     const first = release.episodes.find(isPlayable);
     if (!first || this.session.episodeId || this.session.alias !== alias) return;
-    this.commit({ ...this.session, episodeId: first.id, position: 0, paused: true }, 'release', null);
+    this.commit({ ...this.session, episodeId: first.id, position: 0, paused: true }, 'release', null, false);
   }
 
   join(client: Client): void {
@@ -110,6 +112,8 @@ export class Hub {
         return this.switchRelease(client, msg.input, by);
       case 'chat':
         return this.say(client, peer, msg.text);
+      case 'restore':
+        return this.restore(msg);
     }
     if (!s.episodeId) return; // релиз не загружен — управлять нечем
 
@@ -157,6 +161,36 @@ export class Hub {
     const message: ChatMessage = { id: this.nextChatId++, fromId: peer.id, from: peer.name, text, at: now };
     this.chat = [...this.chat, message].slice(-CHAT_HISTORY);
     this.broadcast({ type: 'chat', messages: [message], history: false });
+  }
+
+  /**
+   * Комнату пересоздали (перезапуск сервера, пустая удалилась), а у зрителя сохранены серия и время —
+   * продолжаем с них на паузе. Если в комнате уже что-то меняли, сохранённое не нужно.
+   */
+  private async restore(msg: Extract<ClientMessage, { type: 'restore' }>): Promise<void> {
+    if (!this.pristine) return;
+    let release: Release;
+    try {
+      release = await this.catalog.get(msg.alias);
+    } catch {
+      return;
+    }
+    const ep = release.episodes.find((e) => e.id === msg.episodeId);
+    if (!ep || !isPlayable(ep) || !this.pristine) return;
+    const position = ep.duration > 0 ? Math.min(msg.position, ep.duration) : msg.position;
+    this.commit(
+      {
+        ...this.session,
+        alias: release.alias,
+        episodeId: ep.id,
+        position,
+        paused: true,
+        rate: msg.rate,
+        anchor: this.now(),
+      },
+      'restore',
+      null,
+    );
   }
 
   /** Конец серии: следующая играет сразу; дубли от других клиентов отсекаются по version. */
@@ -222,7 +256,9 @@ export class Hub {
     }
   }
 
-  private commit(next: Session, cause: Cause, by: string | null): void {
+  /** touched = false — изменение не от зрителей (первая серия при старте), восстановление ещё возможно */
+  private commit(next: Session, cause: Cause, by: string | null, touched = true): void {
+    if (touched) this.pristine = false;
     this.session = { ...next, version: this.session.version + 1 };
     this.broadcast({ type: 'state', session: this.session, cause, by });
   }
