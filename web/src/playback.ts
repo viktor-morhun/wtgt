@@ -8,6 +8,7 @@ import {
   type Quality,
   type Session,
 } from '@wtgt/shared';
+import { KodikMedia, type Media } from './kodik';
 import { send, serverNow } from './net';
 
 /** Как часто сверяем видео с сессией (design D5). */
@@ -17,7 +18,7 @@ const PAUSED_THRESHOLD_S = 0.3;
 /** Столько после своего изменения события <video> не считаем действиями пользователя (design D6). */
 const APPLY_GUARD_MS = 500;
 
-type IOSVideo = HTMLVideoElement & { webkitDisplayingFullscreen?: boolean };
+type IOSVideo = Media & { webkitDisplayingFullscreen?: boolean };
 
 /** Ближайшее доступное качество к выбранному (spec anilibria-source). */
 export function pickQuality(ep: Episode, preferred: Quality): Quality | null {
@@ -27,7 +28,10 @@ export function pickQuality(ep: Episode, preferred: Quality): Quality | null {
 }
 
 type Options = {
+  /** <video> для потоков HLS (AniLibria) */
   video: RefObject<HTMLVideoElement | null>;
+  /** то, что сейчас играет: <video> или плеер Kodik (YummyAnime) */
+  media: RefObject<Media | null>;
   session: Session | null;
   episode: Episode | null;
   quality: Quality;
@@ -51,7 +55,7 @@ export type Playback = {
  * пуск/паузу/скорость и перематывается, если расхождение больше порога (spec synced-playback).
  * Команды отсюда не уходят — их шлют только кнопки и клавиши; исключение — нативный полный экран iOS.
  */
-export function usePlayback({ video, session, episode, quality, joined, onStale }: Options): Playback {
+export function usePlayback({ video, media, session, episode, quality, joined, onStale }: Options): Playback {
   const [catchingUp, setCatchingUp] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -108,7 +112,7 @@ export function usePlayback({ video, session, episode, quality, joined, onStale 
 
   // сверка с сессией
   useEffect(() => {
-    const v = video.current;
+    const v = media.current;
     if (!v || !joined) return;
     const mark = () => (applyingUntil.current = performance.now() + APPLY_GUARD_MS);
 
@@ -176,7 +180,7 @@ export function usePlayback({ video, session, episode, quality, joined, onStale 
       v.removeEventListener('ended', ended);
       for (const t of ['play', 'pause', 'seeked']) v.removeEventListener(t, native);
     };
-  }, [video, joined, episode, session?.version]);
+  }, [media, joined, episode, session?.version]);
 
   return { catchingUp, blocked, error, retry: () => setAttempt((n) => n + 1) };
 }
@@ -184,7 +188,7 @@ export function usePlayback({ video, session, episode, quality, joined, onStale 
 export type Clock = { time: number; duration: number; buffered: number; waiting: boolean };
 
 /** Время, длительность и загруженный кусок видео — для полосы перемотки. */
-export function useVideoClock(video: RefObject<HTMLVideoElement | null>, fallbackDuration: number): Clock {
+export function useVideoClock(video: RefObject<Media | null>, fallbackDuration: number): Clock {
   const [clock, setClock] = useState<Clock>({ time: 0, duration: 0, buffered: 0, waiting: false });
   useEffect(() => {
     const v = video.current;
@@ -218,4 +222,20 @@ export function useVideoClock(video: RefObject<HTMLVideoElement | null>, fallbac
     };
   }, [video, fallbackDuration]);
   return clock;
+}
+
+/** Плеер Kodik во фрейме с адресом src; новый адрес (серия, озвучка) — новый плеер. */
+export function useKodik(frame: RefObject<HTMLIFrameElement | null>, src: string | null): KodikMedia | null {
+  const [media, setMedia] = useState<KodikMedia | null>(null);
+  useEffect(() => {
+    const f = frame.current;
+    if (!f || !src) return;
+    const m = new KodikMedia(f);
+    setMedia(m);
+    return () => {
+      m.destroy();
+      setMedia((cur) => (cur === m ? null : cur));
+    };
+  }, [frame, src]);
+  return src ? media : null;
 }

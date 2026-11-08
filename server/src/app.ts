@@ -43,7 +43,7 @@ export async function buildApp({
       try {
         return await catalog.get(req.params.alias, { fresh: req.query.fresh === '1' });
       } catch (e) {
-        const err = e instanceof CatalogError ? e : new CatalogError('unavailable', 'AniLibria не отвечает');
+        const err = e instanceof CatalogError ? e : new CatalogError('unavailable', 'Источник не отвечает');
         return reply
           .code(err.code === 'not_found' ? 404 : 502)
           .send({ code: err.code, message: err.message });

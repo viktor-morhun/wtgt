@@ -18,6 +18,8 @@ export type RoomEntry = {
   /** длительность серии; 0 — неизвестна */
   duration: number;
   rate: Rate;
+  /** озвучка (YummyAnime); null — у релиза нет выбора */
+  dub: string | null;
   /** Date.now() последнего сохранения */
   at: number;
 };
@@ -52,7 +54,11 @@ function load(): RoomEntry[] {
     return Array.isArray(raw)
       ? raw
           .filter(isEntry)
-          .map((e) => ({ ...e, poster: typeof e.poster === 'string' ? e.poster : null }))
+          .map((e) => ({
+            ...e,
+            poster: typeof e.poster === 'string' ? e.poster : null,
+            dub: typeof e.dub === 'string' ? e.dub : null,
+          }))
           .sort((a, b) => b.at - a.at)
           .slice(0, MAX)
       : [];

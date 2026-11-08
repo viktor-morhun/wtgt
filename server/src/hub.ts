@@ -1,16 +1,19 @@
 import {
   freeze,
+  isPlayable,
   parseAlias,
+  pickDub,
   type Cause,
   type ChatMessage,
   type ClientMessage,
+  type Episode,
   type ErrorCode,
   type Member,
   type Release,
   type ServerMessage,
   type Session,
 } from '@wtgt/shared';
-import { CatalogError, isPlayable, type Catalog } from './anilibria';
+import { CatalogError, type Catalog } from './anilibria';
 
 export type Client = { send(msg: ServerMessage): void };
 type Peer = {
@@ -50,6 +53,7 @@ export class Hub {
       position: 0,
       anchor: now(),
       rate: 1,
+      dub: null,
       version: 0,
     };
   }
@@ -75,7 +79,7 @@ export class Hub {
     }
     const first = release.episodes.find(isPlayable);
     if (!first || this.session.episodeId || this.session.alias !== alias) return;
-    this.commit({ ...this.session, episodeId: first.id, position: 0, paused: true }, 'release', null, false);
+    this.commit({ ...this.session, ...this.at(first), position: 0, paused: true }, 'release', null, false);
   }
 
   join(client: Client): void {
@@ -140,10 +144,22 @@ export class Hub {
         if (!ep || !isPlayable(ep)) return this.error(client, 'bad_request', 'Серия недоступна');
         if (this.session.alias !== release.alias) return;
         this.commit(
-          { ...this.session, episodeId: ep.id, position: 0, paused: true, anchor: this.now() },
+          { ...this.session, ...this.at(ep), position: 0, paused: true, anchor: this.now() },
           'episode',
           by,
         );
+        return;
+      }
+      case 'dub': {
+        const release = await this.release(client);
+        if (!release) return;
+        const ep = release.episodes.find((e) => e.id === this.session.episodeId);
+        if (!ep?.dubs?.some((d) => d.name === msg.dub)) {
+          return this.error(client, 'bad_request', 'Нет такой озвучки');
+        }
+        if (this.session.dub === msg.dub) return;
+        // та же позиция: озвучки одной серии почти совпадают по времени
+        this.commit({ ...freeze(this.session, this.now()), dub: msg.dub }, 'dub', by);
         return;
       }
       case 'ended':
@@ -182,7 +198,7 @@ export class Hub {
       {
         ...this.session,
         alias: release.alias,
-        episodeId: ep.id,
+        ...this.at(ep, msg.dub ?? null),
         position,
         paused: true,
         rate: msg.rate,
@@ -209,7 +225,7 @@ export class Hub {
     const now = this.now();
     if (i >= 0 && next) {
       this.commit(
-        { ...this.session, episodeId: next.id, position: 0, paused: false, anchor: now },
+        { ...this.session, ...this.at(next), position: 0, paused: false, anchor: now },
         'next',
         null,
       );
@@ -227,7 +243,7 @@ export class Hub {
     try {
       release = await this.catalog.get(alias);
     } catch (e) {
-      const err = e instanceof CatalogError ? e : new CatalogError('unavailable', 'AniLibria не отвечает');
+      const err = e instanceof CatalogError ? e : new CatalogError('unavailable', 'Источник не отвечает');
       return this.error(client, err.code, err.message);
     }
     const first = release.episodes.find(isPlayable);
@@ -237,6 +253,7 @@ export class Hub {
         ...this.session,
         alias: release.alias,
         episodeId: first.id,
+        dub: pickDub(first, null),
         position: 0,
         paused: true,
         anchor: this.now(),
@@ -250,10 +267,15 @@ export class Hub {
     try {
       return await this.catalog.get(this.session.alias);
     } catch (e) {
-      const err = e instanceof CatalogError ? e : new CatalogError('unavailable', 'AniLibria не отвечает');
+      const err = e instanceof CatalogError ? e : new CatalogError('unavailable', 'Источник не отвечает');
       this.error(client, err.code, err.message);
       return null;
     }
+  }
+
+  /** Серия с озвучкой: прежней, если она есть и в этой серии. */
+  private at(ep: Episode, preferred = this.session.dub): Pick<Session, 'episodeId' | 'dub'> {
+    return { episodeId: ep.id, dub: pickDub(ep, preferred) };
   }
 
   /** touched = false — изменение не от зрителей (первая серия при старте), восстановление ещё возможно */

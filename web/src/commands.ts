@@ -1,4 +1,5 @@
-import { positionAt, RATES, type Rate, type Release, type Session } from '@wtgt/shared';
+import { isPlayable, positionAt, RATES, type Rate, type Release, type Session } from '@wtgt/shared';
+import type { Media } from './kodik';
 import { getNet, send, serverNow } from './net';
 
 /** Команды общей сессии от кнопок и клавиш (design D6): все действия зрителя идут только отсюда. */
@@ -15,7 +16,7 @@ let pendingRate: Pending<Rate> | null = null;
 const fresh = <T>(p: Pending<T> | null, s: Session): T | null =>
   p && p.version === s.version ? p.value : null;
 
-export function togglePlay(video: HTMLVideoElement | null): void {
+export function togglePlay(video: Media | null): void {
   const s = session();
   if (!s) return;
   if (s.paused) send({ type: 'play' });
@@ -29,7 +30,7 @@ export function seekTo(sec: number, duration: number): void {
   if (s && send({ type: 'seek', position })) pendingSeek = { value: position, version: s.version };
 }
 
-export function seekBy(delta: number, _video: HTMLVideoElement | null, duration: number): void {
+export function seekBy(delta: number, _video: Media | null, duration: number): void {
   const s = session();
   if (!s) return;
   seekTo((fresh(pendingSeek, s) ?? positionAt(s, serverNow())) + delta, duration);
@@ -53,7 +54,7 @@ export function neighbour(release: Release | null, episodeId: string | null, dir
   if (!release || !episodeId) return null;
   const list = release.episodes;
   for (let i = list.findIndex((e) => e.id === episodeId) + dir; i >= 0 && i < list.length; i += dir) {
-    if (Object.keys(list[i]!.hls).length) return list[i]!.id;
+    if (isPlayable(list[i]!)) return list[i]!.id;
   }
   return null;
 }
@@ -62,10 +63,15 @@ export function playEpisode(episodeId: string | null): void {
   if (episodeId) send({ type: 'episode', episodeId });
 }
 
-type FsVideo = HTMLVideoElement & { webkitEnterFullscreen?: () => void };
+/** Озвучка — общая для комнаты, как серия. */
+export function setDub(dub: string): void {
+  if (getNet().session?.dub !== dub) send({ type: 'dub', dub });
+}
+
+type FsVideo = Media & { webkitEnterFullscreen?: () => void };
 
 /** Полный экран — весь плеер вместе с панелью; на iOS — нативный у видео (spec player-ui). */
-export function toggleFullscreen(stage: HTMLElement | null, video: HTMLVideoElement | null): void {
+export function toggleFullscreen(stage: HTMLElement | null, video: Media | null): void {
   if (document.fullscreenElement) {
     void document.exitFullscreen();
     return;

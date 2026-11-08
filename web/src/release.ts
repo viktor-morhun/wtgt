@@ -22,7 +22,7 @@ export function useRelease(alias: string | null): ReleaseState {
     fetch(`/api/release/${encodeURIComponent(alias)}${nonce.fresh ? '?fresh=1' : ''}`, { signal: ctl.signal })
       .then(async (res) => {
         const body = await res.json().catch(() => null);
-        if (!res.ok) throw new Error(body?.message ?? 'AniLibria не отвечает');
+        if (!res.ok) throw new Error(body?.message ?? 'Источник не отвечает');
         setData({ alias, release: body as Release });
       })
       .catch((e: Error) => {

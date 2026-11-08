@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { QUALITIES, type Episode, type Release } from '@wtgt/shared';
+import { isYummy, QUALITIES, YUMMY_PREFIX, type Episode, type Release } from '@wtgt/shared';
+import { normalizeYummy, yummyUrl } from './yummy';
 
 export const ANILIBRIA_ORIGIN = 'https://anilibria.top';
 
@@ -55,12 +56,22 @@ export function normalizeRelease(raw: unknown): Release {
   };
 }
 
-export const isPlayable = (e: Episode): boolean => Object.keys(e.hls).length > 0;
-
 /** fresh — мимо кэша: ссылки на видео могли устареть (design D7). */
 export type Catalog = { get(alias: string, opts?: { fresh?: boolean }): Promise<Release> };
 
 type Options = { fetch?: typeof fetch; ttlMs?: number; timeoutMs?: number };
+
+/** Откуда брать релиз: «yummy:<slug>» — YummyAnime, остальное — AniLibria. */
+function source(alias: string) {
+  if (isYummy(alias)) {
+    return { name: 'YummyAnime', url: yummyUrl(alias.slice(YUMMY_PREFIX.length)), normalize: normalizeYummy };
+  }
+  return {
+    name: 'AniLibria',
+    url: `${ANILIBRIA_ORIGIN}/api/v1/anime/releases/${encodeURIComponent(alias)}`,
+    normalize: normalizeRelease,
+  };
+}
 
 /** Релизы из API с кэшем в памяти; одновременные запросы одного алиаса склеиваются. */
 export function createCatalog({
@@ -72,21 +83,22 @@ export function createCatalog({
   const inflight = new Map<string, Promise<Release>>();
 
   async function load(alias: string): Promise<Release> {
+    const src = source(alias);
     let res: Response;
     try {
-      res = await doFetch(`${ANILIBRIA_ORIGIN}/api/v1/anime/releases/${encodeURIComponent(alias)}`, {
+      res = await doFetch(src.url, {
         headers: { accept: 'application/json' },
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch {
-      throw new CatalogError('unavailable', 'AniLibria не отвечает');
+      throw new CatalogError('unavailable', `${src.name} не отвечает`);
     }
     if (res.status === 404) throw new CatalogError('not_found', 'Релиз не найден');
-    if (!res.ok) throw new CatalogError('unavailable', 'AniLibria не отвечает');
+    if (!res.ok) throw new CatalogError('unavailable', `${src.name} не отвечает`);
     try {
-      return normalizeRelease(await res.json());
+      return src.normalize(await res.json());
     } catch {
-      throw new CatalogError('unavailable', 'AniLibria вернула непонятный ответ');
+      throw new CatalogError('unavailable', `${src.name} вернула непонятный ответ`);
     }
   }
 

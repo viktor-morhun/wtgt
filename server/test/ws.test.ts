@@ -8,13 +8,18 @@ import WebSocket from 'ws';
 import type { ClientMessage, ServerMessage, Session } from '@wtgt/shared';
 import { CatalogError, normalizeRelease, type Catalog } from '../src/anilibria';
 import { buildApp, WS_CLOSE_NO_ROOM } from '../src/app';
+import { normalizeYummy } from '../src/yummy';
 
 const release = normalizeRelease(
   JSON.parse(readFileSync(new URL('./fixtures/tokyo-revengers.json', import.meta.url), 'utf8')),
 );
+const yummy = normalizeYummy(
+  JSON.parse(readFileSync(new URL('./fixtures/yummy-devochka.json', import.meta.url), 'utf8')),
+);
 const okCatalog: Catalog = {
   get: async (alias) => {
     if (alias === 'tokyo-revengers') return release;
+    if (alias === yummy.alias) return yummy;
     if (alias === 'other') return { ...release, alias: 'other', title: 'Другой' };
     throw new CatalogError('not_found', 'Релиз не найден');
   },
@@ -271,6 +276,45 @@ describe('комната по WS', () => {
     b.close();
   });
 
+  it('YummyAnime: озвучка общая для комнаты, сохраняется при смене серии, если она там есть', async () => {
+    const { url, room } = await start();
+    const code = await room();
+    const a = await connect(url(code));
+    const b = await connect(url(code));
+    expect(sessionOf(await a.next(state('join'))).dub).toBeNull();
+    a.send({
+      type: 'release',
+      input: 'https://old.yummyani.me/catalog/item/devochka-iz-chuzhezemya-ova-2022',
+    });
+    expect(sessionOf(await b.next(state('release')))).toMatchObject({
+      alias: yummy.alias,
+      episodeId: '1',
+      dub: 'Субтитры Crunchyroll',
+    });
+
+    a.send({ type: 'seek', position: 600 });
+    await b.next(state('seek'));
+    b.send({ type: 'hello', name: 'Вика' });
+    b.send({ type: 'dub', dub: 'Озвучка SHIZA Project' });
+    const changed = await a.next(state('dub'));
+    expect(changed).toMatchObject({ by: 'Вика' });
+    expect(sessionOf(changed)).toMatchObject({ dub: 'Озвучка SHIZA Project', paused: true, position: 600 });
+
+    b.send({ type: 'dub', dub: 'Озвучка из воздуха' });
+    expect(await b.next((m) => m.type === 'error')).toMatchObject({ code: 'bad_request' });
+
+    // во второй серии SHIZA нет — берётся первая доступная, и она же остаётся при возврате
+    a.send({ type: 'episode', episodeId: '2' });
+    expect(sessionOf(await b.next(state('episode')))).toMatchObject({ dub: 'Субтитры Crunchyroll' });
+    a.send({ type: 'episode', episodeId: '1' });
+    expect(sessionOf(await b.next(state('episode')))).toMatchObject({ dub: 'Субтитры Crunchyroll' });
+
+    a.send({ type: 'release', input: 'tokyo-revengers' });
+    expect(sessionOf(await b.next(state('release')))).toMatchObject({ dub: null });
+    a.close();
+    b.close();
+  });
+
   it('неизвестный код создаёт комнату заново; неверный код — закрытие', async () => {
     const { url, app } = await start();
     const a = await connect(url('zzzzzz'));
@@ -316,6 +360,35 @@ describe('комната по WS', () => {
     expect(a.log.filter(state('restore'))).toHaveLength(0);
     expect(app.rooms.hub(code)!.session).toMatchObject({ alias: 'tokyo-revengers', position: 30 });
     a.close();
+  });
+
+  it('restore YummyAnime возвращает и озвучку; пропавшая озвучка — первая доступная', async () => {
+    const { url, room } = await start();
+    const a = await connect(url(await room()));
+    a.send({
+      type: 'restore',
+      alias: yummy.alias,
+      episodeId: '1',
+      position: 90,
+      rate: 1,
+      dub: 'Озвучка Jaskier',
+    });
+    expect(sessionOf(await a.next(state('restore')))).toMatchObject({
+      episodeId: '1',
+      dub: 'Озвучка Jaskier',
+    });
+    const b = await connect(url(await room()));
+    b.send({
+      type: 'restore',
+      alias: yummy.alias,
+      episodeId: '2',
+      position: 90,
+      rate: 1,
+      dub: 'Озвучка Jaskier',
+    });
+    expect(sessionOf(await b.next(state('restore')))).toMatchObject({ dub: 'Субтитры Crunchyroll' });
+    a.close();
+    b.close();
   });
 
   it('все ушли во время игры — пауза; пустая комната удаляется по таймауту', async () => {

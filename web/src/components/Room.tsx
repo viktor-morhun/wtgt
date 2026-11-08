@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { positionAt } from '@wtgt/shared';
 import * as cmd from '../commands';
 import { getRoom, saveRoom } from '../history';
 import { Icon } from '../icons';
+import type { Media } from '../kodik';
 import { enterRoom, hello, leaveRoom, serverNow, useNet } from '../net';
-import { usePlayback } from '../playback';
+import { useKodik, usePlayback } from '../playback';
 import { useRelease } from '../release';
 import { navigate, roomPath } from '../route';
 import { getSettings, setSettings, useSettings } from '../settings';
@@ -40,6 +41,18 @@ export function Room({ code }: { code: string }) {
   const { release, error: releaseError, reload } = useRelease(session?.alias ?? null);
   const episode = release?.episodes.find((e) => e.id === session?.episodeId) ?? null;
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLIFrameElement>(null);
+  // YummyAnime: озвучка сессии в плеере Kodik вместо <video>
+  const dub = episode?.dubs?.find((d) => d.name === session?.dub) ?? episode?.dubs?.[0] ?? null;
+  const kodik = useKodik(frameRef, dub?.url ?? null);
+  const mediaRef = useMemo<RefObject<Media | null>>(
+    () => ({
+      get current() {
+        return kodik ?? videoRef.current;
+      },
+    }),
+    [kodik],
+  );
   const stageRef = useRef<HTMLDivElement>(null);
   const [joined, setJoined] = useState(() => takeCreated(code));
   const joinedRef = useRef(joined);
@@ -51,7 +64,15 @@ export function Room({ code }: { code: string }) {
   const [typing, setTyping] = useState(false);
   const [seenId, setSeenId] = useState(0);
   const onStale = useCallback(() => reload(true), [reload]);
-  const playback = usePlayback({ video: videoRef, session, episode, quality, joined, onStale });
+  const playback = usePlayback({
+    video: videoRef,
+    media: mediaRef,
+    session,
+    episode,
+    quality,
+    joined,
+    onStale,
+  });
   const playing = !!session && !session.paused;
   const chatVisible = tab === 'chat' && !fullscreen;
   const lastChatId = net.chat.at(-1)?.id ?? 0;
@@ -85,6 +106,7 @@ export function Room({ code }: { code: string }) {
         position: Math.min(24 * 3600, positionAt(session, serverNow())),
         duration: episode.duration,
         rate: session.rate,
+        dub: session.dub,
         at: Date.now(),
       });
     save();
@@ -135,7 +157,7 @@ export function Room({ code }: { code: string }) {
         e.altKey
       )
         return;
-      const v = videoRef.current;
+      const v = mediaRef.current;
       const duration = v && Number.isFinite(v.duration) ? v.duration : (episode?.duration ?? 0);
       const s = net.session;
       const handled = (() => {
@@ -177,14 +199,14 @@ export function Room({ code }: { code: string }) {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [joined, release, episode, net.session]);
+  }, [joined, release, episode, net.session, mediaRef]);
 
   const join = (nick: string) => {
     setSettings({ name: nick });
     hello(nick);
     setJoined(true);
     // в обработчике нажатия: браузер разрешает звук этому видео; пауза, если сессия на паузе, — по сверке
-    void videoRef.current?.play().catch(() => {});
+    void mediaRef.current?.play().catch(() => {});
   };
 
   const invite = async () => {
@@ -257,6 +279,9 @@ export function Room({ code }: { code: string }) {
         <Stage
           stageRef={stageRef}
           videoRef={videoRef}
+          frameRef={frameRef}
+          mediaRef={mediaRef}
+          kodikSrc={dub?.url ?? null}
           release={release}
           releaseError={releaseError}
           onReloadRelease={() => reload(true)}

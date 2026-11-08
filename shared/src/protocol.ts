@@ -6,15 +6,29 @@ export type Rate = (typeof RATES)[number];
 export const QUALITIES = [480, 720, 1080] as const;
 export type Quality = (typeof QUALITIES)[number];
 
-/** Серия релиза в том виде, в каком её видит клиент (нормализованный ответ API AniLibria). */
+/** Озвучка серии: название и плеер Kodik, которым управляем через postMessage. */
+export type Dub = { name: string; url: string };
+
+/** Серия релиза в том виде, в каком её видит клиент (нормализованный ответ AniLibria или YummyAnime). */
 export type Episode = {
   id: string;
   ordinal: number;
   name: string | null;
   /** секунды; 0 — неизвестно */
   duration: number;
+  /** прямые потоки (AniLibria) */
   hls: Partial<Record<Quality, string>>;
+  /** озвучки в плеере Kodik (YummyAnime); популярные первыми */
+  dubs?: Dub[];
 };
+
+export const isPlayable = (e: Episode): boolean => Object.keys(e.hls).length > 0 || !!e.dubs?.length;
+
+/** Озвучка серии: прежняя, если она есть и в этой серии, иначе первая; null — у серии нет озвучек. */
+export function pickDub(e: Episode, preferred: string | null): string | null {
+  if (!e.dubs?.length) return null;
+  return e.dubs.some((d) => d.name === preferred) ? preferred : e.dubs[0]!.name;
+}
 
 export type Release = {
   alias: string;
@@ -41,6 +55,8 @@ export const sessionSchema = z.object({
   /** Date.now() сервера в момент последнего изменения */
   anchor: z.number(),
   rate: rateSchema,
+  /** озвучка — общая для комнаты; null — у релиза нет выбора озвучки */
+  dub: z.string().nullable(),
   version: z.number().int(),
 });
 export type Session = z.infer<typeof sessionSchema>;
@@ -89,23 +105,26 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('rate'), rate: rateSchema }),
   z.object({ type: z.literal('episode'), episodeId: z.string().min(1).max(100) }),
   z.object({ type: z.literal('release'), input: z.string().min(1).max(300) }),
+  z.object({ type: z.literal('dub'), dub: z.string().min(1).max(200) }),
   z.object({ type: z.literal('ended'), episodeId: z.string().min(1).max(100), version: z.number().int() }),
   z.object({ type: z.literal('ping'), t0: z.number() }),
   z.object({ type: z.literal('chat'), text: chatTextSchema }),
   /** серия и время, сохранённые у зрителя: применяются, только если в комнате ещё ничего не меняли */
   z.object({
     type: z.literal('restore'),
-    alias: z.string().min(1).max(100),
+    alias: z.string().min(1).max(120),
     episodeId: z.string().min(1).max(100),
     position,
     rate: rateSchema,
+    /** озвучка (YummyAnime); нет в серии — берётся первая */
+    dub: z.string().max(200).nullish(),
   }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 /** Что изменило сессию — для коротких подсказок поверх видео. */
 export type Cause =
-  'join' | 'play' | 'pause' | 'seek' | 'rate' | 'episode' | 'release' | 'next' | 'end' | 'restore';
+  'join' | 'play' | 'pause' | 'seek' | 'rate' | 'episode' | 'release' | 'next' | 'end' | 'restore' | 'dub';
 
 export type ErrorCode = 'not_found' | 'unavailable' | 'bad_request' | 'too_fast';
 

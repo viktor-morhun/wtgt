@@ -114,7 +114,16 @@ function onMessage(msg: ServerMessage): void {
 
 function savedRoom(code: string): Extract<ClientMessage, { type: 'restore' }> | null {
   const e = getRoom(code);
-  return e && { type: 'restore', alias: e.alias, episodeId: e.episodeId, position: e.position, rate: e.rate };
+  return (
+    e && {
+      type: 'restore',
+      alias: e.alias,
+      episodeId: e.episodeId,
+      position: e.position,
+      rate: e.rate,
+      dub: e.dub,
+    }
+  );
 }
 
 function drop(sock: WebSocket): void {
@@ -126,7 +135,7 @@ function drop(sock: WebSocket): void {
   const s = state.session;
   if (s?.episodeId) {
     const position = Math.min(24 * 3600, positionAt(s, serverNow()));
-    resume = { type: 'restore', alias: s.alias, episodeId: s.episodeId, position, rate: s.rate };
+    resume = { type: 'restore', alias: s.alias, episodeId: s.episodeId, position, rate: s.rate, dub: s.dub };
   }
   set({ online: false });
   retryTimer = setTimeout(open, backoff);

@@ -1,0 +1,244 @@
+{
+ "response": {
+  "anime_url": "devochka-iz-chuzhezemya-ova-2022",
+  "title": "Девочка из Чужеземья (2022)",
+  "poster": {
+   "fullsize": "//static.yani.tv/posters/full/1636667431.jpg",
+   "big": "//static.yani.tv/posters/big/1636667431.webp",
+   "small": "//static.yani.tv/posters/small/1636667431.webp",
+   "medium": "//static.yani.tv/posters/medium/1636667431.webp",
+   "huge": "//static.yani.tv/posters/huge/1636667431.avif",
+   "mega": "//static.yani.tv/posters/mega/1636667431.avif"
+  },
+  "videos": [
+   {
+    "video_id": 305277,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Субтитры Crunchyroll",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/season/84153/541b6f4e2d580359da1c3e31af2664bd/720p?translations=false&only_episode=true&only_season=true&episode=1",
+    "views": 324,
+    "duration": 1530
+   },
+   {
+    "video_id": 305278,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Субтитры Crunchyroll",
+     "player_id": 4
+    },
+    "number": "2",
+    "iframe_url": "//kodikplayer.com/season/84153/541b6f4e2d580359da1c3e31af2664bd/720p?translations=false&only_episode=true&only_season=true&episode=2",
+    "views": 136,
+    "duration": 1625
+   },
+   {
+    "video_id": 305279,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Субтитры Crunchyroll",
+     "player_id": 4
+    },
+    "number": "3",
+    "iframe_url": "//kodikplayer.com/season/84153/541b6f4e2d580359da1c3e31af2664bd/720p?translations=false&only_episode=true&only_season=true&episode=3",
+    "views": 125,
+    "duration": 1600
+   },
+   {
+    "video_id": 305271,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка SHIZA Project",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/87171/f6dabc7b9183369ef6804c4ba3019b5a/720p?translations=false&only_episode=true&only_season=true",
+    "views": 130,
+    "duration": 4197
+   },
+   {
+    "video_id": 305270,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка AniBoom",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/91522/bebfe75619c4163eb6397cd84f908eba/720p?translations=false&only_episode=true&only_season=true",
+    "views": 23,
+    "duration": 4198
+   },
+   {
+    "video_id": 305272,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка DubClub",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/85752/0650cbc703cd7858242f013395d8e10e/720p?translations=false&only_episode=true&only_season=true",
+    "views": 18,
+    "duration": 4206
+   },
+   {
+    "video_id": 305273,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка TAKEOVER Project",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/85440/26e440c680dcabcc1319f6f2ceacb856/720p?translations=false&only_episode=true&only_season=true",
+    "views": 10,
+    "duration": 4197
+   },
+   {
+    "video_id": 305274,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка Jaskier",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/89522/f271cf2e23ec70414d74b2b2d821a46d/720p?translations=false&only_episode=true&only_season=true",
+    "views": 10,
+    "duration": 4196
+   },
+   {
+    "video_id": 497898,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка Amazing Dubbing",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/93744/e368b92cea85dee39c772af4a01234a5/720p?translations=false&only_episode=true&only_season=true",
+    "views": 9,
+    "duration": 4197
+   },
+   {
+    "video_id": 1310795,
+    "data": {
+     "player": "Плеер CVH",
+     "dubbing": "Озвучка Amazing Dubbing",
+     "player_id": 3
+    },
+    "number": "1",
+    "iframe_url": "//ru.yummyani.me/iframeCVH.html?dubbing_code=Amazing+Dubbing&anime_id=48405&episode=1&dubbing=%D0%9E%D0%B7%D0%B2%D1%83%D1%87%D0%BA%D0%B0+Amazing+Dubbing",
+    "views": 0,
+    "duration": 0
+   },
+   {
+    "video_id": 305276,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Субтитры AniBoom",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/90469/4e644925cafc16461aa3fc127853cb71/720p?translations=false&only_episode=true&only_season=true",
+    "views": 7,
+    "duration": 4197
+   },
+   {
+    "video_id": 489271,
+    "data": {
+     "player": "Плеер Alloha",
+     "dubbing": "Озвучка AniStar",
+     "player_id": 2
+    },
+    "number": "1",
+    "iframe_url": "//alloha.yani.tv/?token_movie=d9c45af8575fb5954be2c5451753c0&translation=158&token=8b5512267a2a52e9de06d67d342e0c&hidden=translation,season,episode",
+    "views": 3,
+    "duration": 4227
+   },
+   {
+    "video_id": 724970,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка KAIJU SOUND & Youkai Studio",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/109188/0b57d51577ca7375bc0d9d223806aec7/720p?translations=false&only_episode=true&only_season=true",
+    "views": 3,
+    "duration": 4208
+   },
+   {
+    "video_id": 305275,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка Вистерия",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/90670/c30767509db80cb8d4a2e5b78f489689/720p?translations=false&only_episode=true&only_season=true",
+    "views": 2,
+    "duration": 4186
+   },
+   {
+    "video_id": 491555,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка Sakurina",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/93432/2911bf47d20173b0ffe48e4e27398571/720p?translations=false&only_episode=true&only_season=true",
+    "views": 2,
+    "duration": 4198
+   },
+   {
+    "video_id": 686127,
+    "data": {
+     "player": "Плеер Kodik",
+     "dubbing": "Озвучка youmiteru",
+     "player_id": 4
+    },
+    "number": "1",
+    "iframe_url": "//kodikplayer.com/video/105771/1eb20ccb767568ec5658e977247cb7a2/720p?translations=false&only_episode=true&only_season=true",
+    "views": 0,
+    "duration": 4199
+   },
+   {
+    "video_id": 1020724,
+    "data": {
+     "player": "Плеер VK",
+     "dubbing": "Озвучка Radiant Raid",
+     "player_id": 8
+    },
+    "number": "1",
+    "iframe_url": "//ru.yummyani.me/iframeVK.html?id=-233288072_456239068",
+    "views": 0,
+    "duration": 0
+   },
+   {
+    "video_id": 1348375,
+    "data": {
+     "player": "Плеер CVH",
+     "dubbing": "Дубляж Рабочая партия",
+     "player_id": 3
+    },
+    "number": "1",
+    "iframe_url": "//ru.yummyani.me/iframeCVH.html?dubbing_code=%D0%A0%D0%B0%D0%B1%D0%BE%D1%87%D0%B0%D1%8F+%D0%BF%D0%B0%D1%80%D1%82%D0%B8%D1%8F&anime_id=48405&episode=1&dubbing=%D0%94%D1%83%D0%B1%D0%BB%D1%8F%D0%B6+%D0%A0%D0%B0%D0%B1%D0%BE%D1%87%D0%B0%D1%8F+%D0%BF%D0%B0%D1%80%D1%82%D0%B8%D1%8F",
+    "views": 0,
+    "duration": 4198
+   },
+   {
+    "video_id": 1348376,
+    "data": {
+     "player": "Плеер CVH",
+     "dubbing": "Дубляж KAIJU SOUND",
+     "player_id": 3
+    },
+    "number": "1",
+    "iframe_url": "//ru.yummyani.me/iframeCVH.html?dubbing_code=KAIJU+SOUND&anime_id=48405&episode=1&dubbing=%D0%94%D1%83%D0%B1%D0%BB%D1%8F%D0%B6+KAIJU+SOUND",
+    "views": 0,
+    "duration": 0
+   }
+  ]
+ }
+}

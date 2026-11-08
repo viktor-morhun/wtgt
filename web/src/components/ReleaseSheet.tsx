@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { parseAlias } from '@wtgt/shared';
 import { send, useNet } from '../net';
 
-/** Шторка «сменить тайтл»: ссылка на релиз AniLibria или алиас (spec anilibria-source). */
+/** Шторка «сменить тайтл»: ссылка на релиз AniLibria или YummyAnime, или алиас (spec anilibria-source). */
 export function ReleaseSheet({ currentAlias, onClose }: { currentAlias: string; onClose(): void }) {
   const net = useNet();
   const [input, setInput] = useState('');
@@ -28,7 +28,7 @@ export function ReleaseSheet({ currentAlias, onClose }: { currentAlias: string; 
 
   const submit = () => {
     const alias = parseAlias(input);
-    if (!alias) return setError('Это не похоже на ссылку AniLibria');
+    if (!alias) return setError('Это не похоже на ссылку AniLibria или YummyAnime');
     if (alias === currentAlias) return onClose();
     setError(null);
     if (send({ type: 'release', input: alias })) {
@@ -51,9 +51,9 @@ export function ReleaseSheet({ currentAlias, onClose }: { currentAlias: string; 
             autoFocus
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="https://anilibria.tv/release/…"
+            placeholder="Ссылка на AniLibria или YummyAnime"
             inputMode="url"
-            aria-label="Ссылка на релиз AniLibria"
+            aria-label="Ссылка на релиз AniLibria или YummyAnime"
           />
         </div>
         {error && <div className="release-error">{error}</div>}

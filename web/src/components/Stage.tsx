@@ -12,6 +12,7 @@ import {
 } from '@wtgt/shared';
 import * as cmd from '../commands';
 import { Icon } from '../icons';
+import type { Media } from '../kodik';
 import { useNet } from '../net';
 import { pickQuality, useVideoClock, type Playback } from '../playback';
 import { getSettings, setSettings, useSettings } from '../settings';
@@ -27,9 +28,17 @@ const DOUBLE_TAP_MS = 300;
 
 export const episodeLabel = (e: Episode) => `Серия ${e.ordinal}`;
 
+/** «Озвучка SHIZA Project» → «SHIZA Project»; субтитры и дубляж оставляем как есть. */
+export const dubLabel = (name: string) => name.replace(/^Озвучкаs+/i, '');
+
 interface Props {
   stageRef: RefObject<HTMLDivElement | null>;
   videoRef: RefObject<HTMLVideoElement | null>;
+  frameRef: RefObject<HTMLIFrameElement | null>;
+  /** то, что сейчас играет: <video> или плеер Kodik */
+  mediaRef: RefObject<Media | null>;
+  /** адрес плеера Kodik текущей озвучки; null — играет <video> */
+  kodikSrc: string | null;
   release: Release | null;
   releaseError: string | null;
   onReloadRelease(): void;
@@ -43,12 +52,14 @@ interface Props {
 
 /** Видео во всю сцену, поверх — управление, подсказки действий, вход и ошибки. */
 export function Stage(props: Props) {
-  const { stageRef, videoRef, release, session, episode, playback, joined, fullscreen } = props;
+  const { stageRef, videoRef, frameRef, mediaRef, kodikSrc, release, session, episode, playback, joined } =
+    props;
+  const { fullscreen } = props;
   const net = useNet();
   const settings = useSettings();
-  const clock = useVideoClock(videoRef, episode?.duration ?? 0);
+  const clock = useVideoClock(mediaRef, episode?.duration ?? 0);
   const [active, setActive] = useState(true);
-  const [menu, setMenu] = useState<'rate' | 'quality' | null>(null);
+  const [menu, setMenu] = useState<'rate' | 'quality' | 'dub' | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const clickTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastTap = useRef(0);
@@ -56,11 +67,11 @@ export function Stage(props: Props) {
 
   // громкость — своя у каждого зрителя
   useEffect(() => {
-    const v = videoRef.current;
+    const v = mediaRef.current;
     if (!v) return;
     v.volume = settings.volume;
     v.muted = settings.muted;
-  }, [videoRef, settings.volume, settings.muted]);
+  }, [mediaRef, settings.volume, settings.muted]);
 
   const wake = () => {
     setActive(true);
@@ -88,14 +99,14 @@ export function Stage(props: Props) {
   const onSurface = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse') {
       clearTimeout(clickTimer.current);
-      clickTimer.current = setTimeout(() => cmd.togglePlay(videoRef.current), CLICK_DELAY_MS);
+      clickTimer.current = setTimeout(() => cmd.togglePlay(mediaRef.current), CLICK_DELAY_MS);
       return;
     }
     // палец: тап — показать или спрятать панель, двойной тап — полный экран
     const now = performance.now();
     if (now - lastTap.current < DOUBLE_TAP_MS) {
       lastTap.current = 0;
-      cmd.toggleFullscreen(stageRef.current, videoRef.current);
+      cmd.toggleFullscreen(stageRef.current, mediaRef.current);
       return;
     }
     lastTap.current = now;
@@ -120,6 +131,9 @@ export function Stage(props: Props) {
     );
   } else if (!joined && release) {
     overlay = <Join release={release} episode={episode} onJoin={props.onJoin} />;
+  } else if (playback.blocked && kodikSrc) {
+    // Kodik не запустился сам (браузер не дал или идёт реклама) — нажать можно только в самом плеере
+    overlay = <div className="stage-status">не запускается? нажми ▶ в плеере</div>;
   } else if (playback.blocked) {
     overlay = (
       <div className="stage-cover">
@@ -139,18 +153,36 @@ export function Stage(props: Props) {
   return (
     <div
       ref={stageRef}
-      className={`stage${shown ? '' : ' idle'}${fullscreen ? ' is-fullscreen' : ''}`}
+      className={`stage${shown ? '' : ' idle'}${fullscreen ? ' is-fullscreen' : ''}${kodikSrc ? ' kodik' : ''}`}
       onPointerMove={(e) => e.pointerType === 'mouse' && wake()}
     >
-      <video ref={videoRef} playsInline preload="auto" poster={release?.poster ?? undefined} />
-      <div
-        className="stage-hit"
-        onPointerUp={onSurface}
-        onDoubleClick={() => {
-          clearTimeout(clickTimer.current);
-          cmd.toggleFullscreen(stageRef.current, videoRef.current);
-        }}
+      <video
+        ref={videoRef}
+        playsInline
+        preload="auto"
+        poster={release?.poster ?? undefined}
+        hidden={!!kodikSrc}
       />
+      {kodikSrc && (
+        <iframe
+          key={kodikSrc}
+          ref={frameRef}
+          src={kodikSrc}
+          title={release?.title ?? 'Плеер'}
+          allow="autoplay; fullscreen; encrypted-media; picture-in-picture"
+          allowFullScreen
+        />
+      )}
+      {!(kodikSrc && playback.blocked) && (
+        <div
+          className="stage-hit"
+          onPointerUp={onSurface}
+          onDoubleClick={() => {
+            clearTimeout(clickTimer.current);
+            cmd.toggleFullscreen(stageRef.current, mediaRef.current);
+          }}
+        />
+      )}
       <Osd session={session} release={release} />
       {fullscreen && joined && <ChatOverlay />}
       {(playback.catchingUp || clock.waiting) && joined && !overlay && (
@@ -174,6 +206,28 @@ export function Stage(props: Props) {
               <span className="vctl-time">
                 {formatTime(clock.time)} <span className="vctl-dim">/ {formatTime(duration)}</span>
               </span>
+              {!!episode.dubs?.length && (
+                <Menu
+                  open={menu === 'dub'}
+                  onToggle={(o) => setMenu(o ? 'dub' : null)}
+                  label={session?.dub ? dubLabel(session.dub) : 'Озвучка'}
+                  title="Озвучка — у всех в комнате"
+                  className="vmenu-dub"
+                >
+                  {episode.dubs.map((d) => (
+                    <button
+                      key={d.name}
+                      className={`chip rp${session?.dub === d.name ? ' active' : ''}`}
+                      onClick={() => {
+                        cmd.setDub(d.name);
+                        setMenu(null);
+                      }}
+                    >
+                      {dubLabel(d.name)}
+                    </button>
+                  ))}
+                </Menu>
+              )}
             </div>
             <div className="vctl-main">
               <button
@@ -187,7 +241,7 @@ export function Stage(props: Props) {
               </button>
               <button
                 className="ctrl ctrl-sm ctrl-stroke rp"
-                onClick={() => cmd.seekBy(-10, videoRef.current, duration)}
+                onClick={() => cmd.seekBy(-10, mediaRef.current, duration)}
                 aria-label="Назад 10 секунд"
                 title="−10 с (←)"
               >
@@ -195,7 +249,7 @@ export function Stage(props: Props) {
               </button>
               <button
                 className={`ctrl ctrl-main rp${playing ? ' playing' : ''}`}
-                onClick={() => cmd.togglePlay(videoRef.current)}
+                onClick={() => cmd.togglePlay(mediaRef.current)}
                 aria-label={playing ? 'Пауза' : 'Смотреть'}
                 title="Пуск/пауза (пробел)"
               >
@@ -205,7 +259,7 @@ export function Stage(props: Props) {
               </button>
               <button
                 className="ctrl ctrl-sm ctrl-stroke rp"
-                onClick={() => cmd.seekBy(10, videoRef.current, duration)}
+                onClick={() => cmd.seekBy(10, mediaRef.current, duration)}
                 aria-label="Вперёд 10 секунд"
                 title="+10 с (→)"
               >
@@ -241,29 +295,31 @@ export function Stage(props: Props) {
                   </button>
                 ))}
               </Menu>
-              <Menu
-                open={menu === 'quality'}
-                onToggle={(o) => setMenu(o ? 'quality' : null)}
-                label={`${pickQuality(episode, settings.quality) ?? settings.quality}p`}
-                title="Качество — только у тебя"
-              >
-                {QUALITIES.filter((q) => episode.hls[q]).map((q: Quality) => (
-                  <button
-                    key={q}
-                    className={`chip rp${pickQuality(episode, settings.quality) === q ? ' active' : ''}`}
-                    onClick={() => {
-                      setSettings({ quality: q });
-                      setMenu(null);
-                    }}
-                  >
-                    {q}p
-                  </button>
-                ))}
-              </Menu>
+              {Object.keys(episode.hls).length > 0 && (
+                <Menu
+                  open={menu === 'quality'}
+                  onToggle={(o) => setMenu(o ? 'quality' : null)}
+                  label={`${pickQuality(episode, settings.quality) ?? settings.quality}p`}
+                  title="Качество — только у тебя"
+                >
+                  {QUALITIES.filter((q) => episode.hls[q]).map((q: Quality) => (
+                    <button
+                      key={q}
+                      className={`chip rp${pickQuality(episode, settings.quality) === q ? ' active' : ''}`}
+                      onClick={() => {
+                        setSettings({ quality: q });
+                        setMenu(null);
+                      }}
+                    >
+                      {q}p
+                    </button>
+                  ))}
+                </Menu>
+              )}
               <Volume />
               <button
                 className="icon-btn vctl-btn rp"
-                onClick={() => cmd.toggleFullscreen(stageRef.current, videoRef.current)}
+                onClick={() => cmd.toggleFullscreen(stageRef.current, mediaRef.current)}
                 aria-label={fullscreen ? 'Выйти из полного экрана' : 'Полный экран'}
                 title="Полный экран (F)"
               >
@@ -358,9 +414,11 @@ function Osd({ session, release }: { session: Session | null; release: Release |
       release: release?.title ?? 'Другой тайтл',
       end: 'Конец',
       restore: `${ep ? `${episodeLabel(ep)} · ` : ''}${formatTime(session.position)}`,
+      dub: session.dub ? dubLabel(session.dub) : 'Другая озвучка',
     };
-    // чужое действие — с автором, своё — без
-    const text = by && by !== me ? `${by}: ${t[cause].toLowerCase()}` : t[cause];
+    // чужое действие — с автором, своё — без; название озвучки — как есть
+    const what = cause === 'dub' ? t[cause] : t[cause].toLowerCase();
+    const text = by && by !== me ? `${by}: ${what}` : t[cause];
     setText({ key: session.version, text });
     const timer = setTimeout(() => setText(null), OSD_MS);
     return () => clearTimeout(timer);
@@ -380,12 +438,14 @@ function Menu({
   onToggle,
   label,
   title,
+  className,
   children,
 }: {
   open: boolean;
   onToggle(open: boolean): void;
   label: string;
   title: string;
+  className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -396,7 +456,7 @@ function Menu({
     return () => document.removeEventListener('pointerdown', close);
   }, [open, onToggle]);
   return (
-    <div className="vmenu" ref={ref}>
+    <div className={`vmenu${className ? ` ${className}` : ''}`} ref={ref}>
       <button
         className={`chip vchip rp${open ? ' active' : ''}`}
         onClick={() => onToggle(!open)}

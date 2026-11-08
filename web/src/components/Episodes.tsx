@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { formatTime, type Release } from '@wtgt/shared';
+import { formatTime, isPlayable, type Release } from '@wtgt/shared';
 import * as cmd from '../commands';
 import { episodeLabel } from './Stage';
 
@@ -27,7 +27,7 @@ export function Episodes({
     <ul className="list episodes">
       {release.episodes.map((e, i) => {
         const current = e.id === currentId;
-        const playable = Object.keys(e.hls).length > 0;
+        const playable = isPlayable(e);
         return (
           <li key={e.id} style={{ '--i': Math.min(i, 20) } as React.CSSProperties}>
             <button
