@@ -1,7 +1,10 @@
 /**
- * Плеер Kodik в iframe под видом <video> — чтобы сверка с сессией, полоса перемотки и команды
- * работали с ним так же, как с HLS. Управление — postMessage-API Kodik:
- * play / pause / seek / speed / volume / mute / get_time; в ответ — события kodik_player_*.
+ * Плеер Kodik в iframe под видом <video> — чтобы сверка с сессией работала с ним так же, как с HLS.
+ * Управление — postMessage-API Kodik: play / pause / seek / speed / get_time; в ответ — события kodik_player_*.
+ *
+ * Кнопки у Kodik свои (качество, скорость, громкость, полный экран — всё в самом плеере), поэтому
+ * его события делятся на два вида: ответы на наши команды (сверка) и нажатия зрителя. Вторые
+ * выходят наружу событием «useraction» и превращаются в команды комнаты.
  */
 
 /** То, что от видео нужно сверке, полосе перемотки и командам; <video> подходит как есть. */
@@ -27,8 +30,15 @@ const POLL_MS = 250;
 const SEEK_NEAR_S = 1.5;
 /** …или по таймауту. */
 const SEEK_TIMEOUT_MS = 3_000;
-/** Плеер не начал играть за это время — браузер не дал (или идёт реклама): нужен клик в самом плеере. */
-const PLAY_TIMEOUT_MS = 4_000;
+/** Перемотка к той же точке в пределах этого — ответ на нашу команду или повтор (Kodik шлёт события дважды). */
+const SEEK_ECHO_MS = 3_000;
+
+/** Что зритель нажал в самом плеере Kodik. */
+export type UserAction =
+  | { type: 'play' }
+  | { type: 'pause'; position: number }
+  | { type: 'seek'; position: number }
+  | { type: 'rate'; rate: number };
 
 const NO_RANGES = { length: 0, start: () => 0, end: () => 0 };
 
@@ -43,7 +53,10 @@ export class KodikMedia extends EventTarget implements Media {
   private _duration = NaN;
   private seekTarget: number | null = null;
   private seekTimer: ReturnType<typeof setTimeout> | undefined;
-  private playWait: { promise: Promise<void>; resolve(): void } | null = null;
+  /** что мы последним велели плееру: пуск/пауза в ту же сторону — ответ, в другую — нажатие зрителя */
+  private want: 'play' | 'pause' | null = null;
+  /** последняя перемотка, о которой сообщил плеер, — чтобы отсеять повтор */
+  private lastSeek = { time: NaN, at: 0 };
   private rate = 1;
   private _volume = 1;
   private _muted = false;
@@ -78,6 +91,7 @@ export class KodikMedia extends EventTarget implements Media {
     if (!this.loaded) return;
     this.post('seek', { seconds: t });
     this.seekTarget = t;
+    this.lastSeek = { time: t, at: performance.now() };
     clearTimeout(this.seekTimer);
     this.seekTimer = setTimeout(() => this.seeked(), SEEK_TIMEOUT_MS);
   }
@@ -108,46 +122,29 @@ export class KodikMedia extends EventTarget implements Media {
   }
   set defaultPlaybackRate(_: number) {}
 
+  // громкость у Kodik своя, в его плеере: не трогаем
   get volume(): number {
     return this._volume;
   }
   set volume(v: number) {
     this._volume = v;
-    this.post('volume', { volume: v });
   }
   get muted(): boolean {
     return this._muted;
   }
   set muted(m: boolean) {
     this._muted = m;
-    this.post(m ? 'mute' : 'unmute');
   }
 
-  /** Резолвится, когда плеер сообщил о пуске; не дождались — NotAllowedError, как у <video>. */
+  /** Не дал браузер — зритель нажмёт пуск в самом плеере, это совпадёт с сессией. */
   play(): Promise<void> {
+    this.want = 'play';
     this.post('play');
-    if (!this._paused) return Promise.resolve();
-    if (!this.playWait) {
-      let resolve!: () => void;
-      let reject!: (e: unknown) => void;
-      const promise = new Promise<void>((res, rej) => ((resolve = res), (reject = rej)));
-      const timer = setTimeout(() => {
-        this.playWait = null;
-        reject(new DOMException('Kodik не начал играть', 'NotAllowedError'));
-      }, PLAY_TIMEOUT_MS);
-      this.playWait = {
-        promise,
-        resolve: () => {
-          clearTimeout(timer);
-          this.playWait = null;
-          resolve();
-        },
-      };
-    }
-    return this.playWait.promise;
+    return Promise.resolve();
   }
 
   pause(): void {
+    this.want = 'pause';
     this.post('pause');
   }
 
@@ -164,6 +161,10 @@ export class KodikMedia extends EventTarget implements Media {
     for (const t of types) this.dispatchEvent(new Event(t));
   }
 
+  private user(action: UserAction): void {
+    this.dispatchEvent(new CustomEvent<UserAction>('useraction', { detail: action }));
+  }
+
   private seeked(): void {
     clearTimeout(this.seekTimer);
     if (this.seekTarget === null) return;
@@ -175,8 +176,6 @@ export class KodikMedia extends EventTarget implements Media {
   private markLoaded(): void {
     if (this.loaded) return;
     this.loaded = true;
-    this.post('volume', { volume: this._volume });
-    this.post(this._muted ? 'mute' : 'unmute');
     if (this.rate !== 1) this.post('speed', { speed: this.rate });
     this.emit('loadedmetadata');
   }
@@ -210,22 +209,48 @@ export class KodikMedia extends EventTarget implements Media {
         }
         return;
       case 'kodik_player_video_started':
-      case 'kodik_player_play':
+      case 'kodik_player_play': {
         this.markLoaded();
+        if (!this._paused) return; // повтор
         this.setTime(this.currentTime);
         this._paused = false;
         this._ended = false;
-        this.playWait?.resolve();
         this.emit('play', 'playing');
+        if (key === 'kodik_player_play' && this.want !== 'play') this.user({ type: 'play' });
         return;
+      }
       case 'kodik_player_pause':
+        if (this._paused) return; // повтор или конец серии
         this.setTime(this.currentTime);
         this._paused = true;
         this.emit('pause');
+        if (this.want !== 'pause') this.user({ type: 'pause', position: this.time });
         return;
-      case 'kodik_player_seek':
+      case 'kodik_player_seek': {
         this.markLoaded();
+        const time = (value as { time?: unknown } | null)?.time;
+        if (typeof time !== 'number' || !Number.isFinite(time)) return;
+        const now = performance.now();
+        const repeat =
+          Math.abs(time - this.lastSeek.time) < SEEK_NEAR_S && now - this.lastSeek.at < SEEK_ECHO_MS;
+        this.lastSeek = { time, at: now };
+        if (repeat) return; // наша перемотка или повтор
+        clearTimeout(this.seekTimer);
+        this.seekTarget = null;
+        this.setTime(time);
+        this._ended = false;
+        this.emit('timeupdate');
+        this.user({ type: 'seek', position: time });
         return;
+      }
+      case 'kodik_player_speed_change': {
+        const speed = (value as { speed?: unknown } | null)?.speed;
+        if (typeof speed !== 'number' || speed === this.rate) return; // наша скорость или повтор
+        this.setTime(this.currentTime);
+        this.rate = speed;
+        this.user({ type: 'rate', rate: speed });
+        return;
+      }
       case 'kodik_player_video_ended':
         if (Number.isFinite(this._duration)) this.setTime(this._duration);
         this._ended = true;

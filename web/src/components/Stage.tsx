@@ -29,7 +29,7 @@ const DOUBLE_TAP_MS = 300;
 export const episodeLabel = (e: Episode) => `Серия ${e.ordinal}`;
 
 /** «Озвучка SHIZA Project» → «SHIZA Project»; субтитры и дубляж оставляем как есть. */
-export const dubLabel = (name: string) => name.replace(/^Озвучкаs+/i, '');
+export const dubLabel = (name: string) => name.replace(/^Озвучка\s+/i, '');
 
 interface Props {
   stageRef: RefObject<HTMLDivElement | null>;
@@ -59,7 +59,7 @@ export function Stage(props: Props) {
   const settings = useSettings();
   const clock = useVideoClock(mediaRef, episode?.duration ?? 0);
   const [active, setActive] = useState(true);
-  const [menu, setMenu] = useState<'rate' | 'quality' | 'dub' | null>(null);
+  const [menu, setMenu] = useState<'rate' | 'quality' | null>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const clickTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastTap = useRef(0);
@@ -131,10 +131,7 @@ export function Stage(props: Props) {
     );
   } else if (!joined && release) {
     overlay = <Join release={release} episode={episode} onJoin={props.onJoin} />;
-  } else if (playback.blocked && kodikSrc) {
-    // Kodik не запустился сам (браузер не дал или идёт реклама) — нажать можно только в самом плеере
-    overlay = <div className="stage-status">не запускается? нажми ▶ в плеере</div>;
-  } else if (playback.blocked) {
+  } else if (playback.blocked && !kodikSrc) {
     overlay = (
       <div className="stage-cover">
         <button className="btn btn-wide rp" onClick={() => void videoRef.current?.play()}>
@@ -153,7 +150,7 @@ export function Stage(props: Props) {
   return (
     <div
       ref={stageRef}
-      className={`stage${shown ? '' : ' idle'}${fullscreen ? ' is-fullscreen' : ''}${kodikSrc ? ' kodik' : ''}`}
+      className={`stage${shown ? '' : ' idle'}${fullscreen ? ' is-fullscreen' : ''}`}
       onPointerMove={(e) => e.pointerType === 'mouse' && wake()}
     >
       <video
@@ -173,7 +170,8 @@ export function Stage(props: Props) {
           allowFullScreen
         />
       )}
-      {!(kodikSrc && playback.blocked) && (
+      {/* у Kodik кнопки свои (качество, скорость, громкость, полный экран): поверх ничего не кладём */}
+      {!kodikSrc && (
         <div
           className="stage-hit"
           onPointerUp={onSurface}
@@ -192,7 +190,7 @@ export function Stage(props: Props) {
       )}
       {!net.online && <div className="stage-status stage-offline">нет связи</div>}
       {overlay}
-      {joined && release && episode && !playback.error && (
+      {joined && release && episode && !playback.error && !kodikSrc && (
         <div className="vctl" onPointerDown={wake}>
           <WaveProgress
             value={clock.time}
@@ -206,28 +204,6 @@ export function Stage(props: Props) {
               <span className="vctl-time">
                 {formatTime(clock.time)} <span className="vctl-dim">/ {formatTime(duration)}</span>
               </span>
-              {!!episode.dubs?.length && (
-                <Menu
-                  open={menu === 'dub'}
-                  onToggle={(o) => setMenu(o ? 'dub' : null)}
-                  label={session?.dub ? dubLabel(session.dub) : 'Озвучка'}
-                  title="Озвучка — у всех в комнате"
-                  className="vmenu-dub"
-                >
-                  {episode.dubs.map((d) => (
-                    <button
-                      key={d.name}
-                      className={`chip rp${session?.dub === d.name ? ' active' : ''}`}
-                      onClick={() => {
-                        cmd.setDub(d.name);
-                        setMenu(null);
-                      }}
-                    >
-                      {dubLabel(d.name)}
-                    </button>
-                  ))}
-                </Menu>
-              )}
             </div>
             <div className="vctl-main">
               <button
@@ -438,14 +414,12 @@ function Menu({
   onToggle,
   label,
   title,
-  className,
   children,
 }: {
   open: boolean;
   onToggle(open: boolean): void;
   label: string;
   title: string;
-  className?: string;
   children: ReactNode;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -456,7 +430,7 @@ function Menu({
     return () => document.removeEventListener('pointerdown', close);
   }, [open, onToggle]);
   return (
-    <div className={`vmenu${className ? ` ${className}` : ''}`} ref={ref}>
+    <div className="vmenu" ref={ref}>
       <button
         className={`chip vchip rp${open ? ' active' : ''}`}
         onClick={() => onToggle(!open)}

@@ -12,11 +12,11 @@ import { getSettings, setSettings, useSettings } from '../settings';
 import { useVisualViewport } from '../viewport';
 import { Avatars } from './Avatars';
 import { Chat } from './Chat';
-import { Episodes } from './Episodes';
+import { Dubs, Episodes } from './Episodes';
 import { CREATED_KEY } from './Home';
 import { NameSheet } from './NameSheet';
 import { ReleaseSheet } from './ReleaseSheet';
-import { episodeLabel, Stage } from './Stage';
+import { dubLabel, episodeLabel, Stage } from './Stage';
 
 const TOAST_MS = 2_000;
 /** Как часто запоминаем время просмотра, пока серия идёт. */
@@ -60,7 +60,10 @@ export function Room({ code }: { code: string }) {
   const [sheet, setSheet] = useState<'release' | 'name' | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [tab, setTab] = useState<'chat' | 'episodes'>('chat');
+  const [tabPicked, setTab] = useState<'chat' | 'episodes' | 'dubs'>('chat');
+  // вкладка озвучек — только у серий с выбором озвучки
+  const hasDubs = !!episode?.dubs?.length;
+  const tab = tabPicked === 'dubs' && !hasDubs ? 'chat' : tabPicked;
   const [typing, setTyping] = useState(false);
   const [seenId, setSeenId] = useState(0);
   const onStale = useCallback(() => reload(true), [reload]);
@@ -245,6 +248,7 @@ export function Room({ code }: { code: string }) {
               <div className="row-sub">
                 {episodeLabel(episode)}
                 {episode.name ? ` · ${episode.name}` : ''}
+                {session?.dub ? ` · ${dubLabel(session.dub)}` : ''}
               </div>
             )}
           </div>
@@ -312,6 +316,17 @@ export function Room({ code }: { code: string }) {
           >
             серии
           </button>
+          {hasDubs && (
+            <button
+              role="tab"
+              aria-selected={tab === 'dubs'}
+              className={`chip tab rp${tab === 'dubs' ? ' active' : ''}`}
+              onClick={() => setTab('dubs')}
+              title="Озвучка — у всех в комнате"
+            >
+              озвучка
+            </button>
+          )}
         </div>
         <div className="panel panel-chat" hidden={tab !== 'chat'}>
           <Chat joined={joined} onTyping={setTyping} />
@@ -328,6 +343,11 @@ export function Room({ code }: { code: string }) {
             <div className="empty">{releaseError ?? <span className="spinner" />}</div>
           )}
         </div>
+        {hasDubs && episode && (
+          <div className="panel panel-episodes" hidden={tab !== 'dubs'}>
+            <Dubs episode={episode} current={session?.dub ?? null} />
+          </div>
+        )}
       </aside>
       {sheet === 'release' && session && (
         <ReleaseSheet currentAlias={session.alias} onClose={() => setSheet(null)} />

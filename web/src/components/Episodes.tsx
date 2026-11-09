@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { formatTime, isPlayable, type Release } from '@wtgt/shared';
+import { formatTime, isPlayable, type Episode, type Release } from '@wtgt/shared';
 import * as cmd from '../commands';
-import { episodeLabel } from './Stage';
+import { dubLabel, episodeLabel } from './Stage';
 
 /** Список серий как очередь в listen-together: текущая выделена, у неё эквалайзер, пока идёт. */
 export function Episodes({
@@ -52,6 +52,29 @@ export function Episodes({
                 {(e.name || !playable) && <span className="row-sub">{playable ? e.name : 'нет видео'}</span>}
               </span>
               {e.duration > 0 && <span className="badge">{formatTime(e.duration)}</span>}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** Озвучки текущей серии (YummyAnime): выбор общий для комнаты, как серия. */
+export function Dubs({ episode, current }: { episode: Episode; current: string | null }) {
+  return (
+    <ul className="list episodes">
+      {(episode.dubs ?? []).map((d, i) => {
+        const active = d.name === current;
+        return (
+          <li key={d.name} style={{ '--i': Math.min(i, 20) } as React.CSSProperties}>
+            <button
+              className={`row row-button rp${active ? ' row-current' : ''}`}
+              onClick={() => !active && cmd.setDub(d.name)}
+            >
+              <span className="row-main">
+                <span className="row-title">{dubLabel(d.name)}</span>
+              </span>
             </button>
           </li>
         );

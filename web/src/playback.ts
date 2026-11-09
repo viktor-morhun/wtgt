@@ -4,11 +4,12 @@ import {
   DRIFT_THRESHOLD_S,
   positionAt,
   QUALITIES,
+  RATES,
   type Episode,
   type Quality,
   type Session,
 } from '@wtgt/shared';
-import { KodikMedia, type Media } from './kodik';
+import { KodikMedia, type Media, type UserAction } from './kodik';
 import { send, serverNow } from './net';
 
 /** Как часто сверяем видео с сессией (design D5). */
@@ -17,6 +18,8 @@ const SYNC_MS = 500;
 const PAUSED_THRESHOLD_S = 0.3;
 /** Столько после своего изменения события <video> не считаем действиями пользователя (design D6). */
 const APPLY_GUARD_MS = 500;
+/** Зритель нажал в плеере Kodik — столько не возвращаем плеер к сессии, пока сервер не ответил. */
+const USER_GRACE_MS = 1_500;
 
 type IOSVideo = Media & { webkitDisplayingFullscreen?: boolean };
 
@@ -61,6 +64,7 @@ export function usePlayback({ video, media, session, episode, quality, joined, o
   const [error, setError] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const applyingUntil = useRef(0);
+  const userGrace = useRef({ until: 0, version: -1 });
   const sessionRef = useRef(session);
   sessionRef.current = session;
   const staleRef = useRef(onStale);
@@ -120,6 +124,9 @@ export function usePlayback({ video, media, session, episode, quality, joined, o
       const s = sessionRef.current;
       if (!s || !episode || s.episodeId !== episode.id || v.readyState < HTMLMediaElement.HAVE_METADATA)
         return;
+      // своё нажатие в Kodik ещё не дошло до сервера — не откатываем его
+      const g = userGrace.current;
+      if (performance.now() < g.until && s.version === g.version) return;
       if (v.playbackRate !== s.rate) {
         mark();
         v.defaultPlaybackRate = v.playbackRate = s.rate;
@@ -159,6 +166,20 @@ export function usePlayback({ video, media, session, episode, quality, joined, o
       else if (e.type === 'pause' && !v.ended) send({ type: 'pause', position: v.currentTime });
       else if (e.type === 'seeked') send({ type: 'seek', position: v.currentTime });
     };
+    // нажатия в самом плеере Kodik → команды комнаты
+    const user = (e: Event) => {
+      const a = (e as CustomEvent<UserAction>).detail;
+      const s = sessionRef.current;
+      if (!s) return;
+      userGrace.current = { until: performance.now() + USER_GRACE_MS, version: s.version };
+      if (a.type === 'play') send({ type: 'play' });
+      else if (a.type === 'pause') send({ type: 'pause', position: a.position });
+      else if (a.type === 'seek') send({ type: 'seek', position: a.position });
+      else {
+        const rate = RATES.reduce((best, r) => (Math.abs(r - a.rate) < Math.abs(best - a.rate) ? r : best));
+        send({ type: 'rate', rate });
+      }
+    };
 
     sync();
     const timer = setInterval(sync, SYNC_MS);
@@ -170,7 +191,9 @@ export function usePlayback({ video, media, session, episode, quality, joined, o
     v.addEventListener('seeked', settled);
     v.addEventListener('ended', ended);
     for (const t of ['play', 'pause', 'seeked']) v.addEventListener(t, native);
+    v.addEventListener('useraction', user);
     return () => {
+      v.removeEventListener('useraction', user);
       clearInterval(timer);
       document.removeEventListener('visibilitychange', onVisible);
       v.removeEventListener('loadedmetadata', sync);

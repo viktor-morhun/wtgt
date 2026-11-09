@@ -560,34 +560,6 @@ svg.stroke text {
   min-width: 72px;
   font-variant-numeric: tabular-nums;
 }
-/* озвучек бывает три десятка — длинный список с прокруткой, название в чипе обрезается */
-.vmenu-dub {
-  flex: 0 1 auto;
-  min-width: 0;
-}
-.vmenu-dub .vchip {
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.vmenu-dub .vmenu-pop {
-  right: auto;
-  left: 0;
-  transform-origin: 20% 100%;
-  max-height: min(360px, 60vh);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-.vmenu-dub .vmenu-pop .chip {
-  flex: none;
-  max-width: min(280px, 70vw);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-align: left;
-}
 @keyframes menu-in {
   from {
     opacity: 0;
@@ -777,16 +749,6 @@ svg.stroke text {
   .vchip {
     min-width: 0;
     padding: 6px 10px;
-  }
-  /* на паузе у Kodik на телефоне видна своя полоска управления — прячем её под нашей панелью */
-  .stage.kodik .vctl {
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.94) 56px, rgba(0, 0, 0, 0.5) 96px);
-  }
-  /* сцена на телефоне низкая — меню озвучек не выше неё */
-  .stage:not(.is-fullscreen) .vmenu-dub .vmenu-pop {
-    max-height: 150px;
-    padding: 6px;
-    gap: 4px;
   }
   .stage-cover {
     gap: 8px;
