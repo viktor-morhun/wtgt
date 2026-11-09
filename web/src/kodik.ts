@@ -208,7 +208,11 @@ export class KodikMedia extends EventTarget implements Media {
           this.emit('durationchange');
         }
         return;
+      // начало ролика (после рекламы) — только знак, что плеер ожил: пуск придёт отдельным kodik_player_play,
+      // и если отметить игру уже здесь, пуск зрителя сойдёт за повтор
       case 'kodik_player_video_started':
+        this.markLoaded();
+        return;
       case 'kodik_player_play': {
         this.markLoaded();
         if (!this._paused) return; // повтор
@@ -216,7 +220,11 @@ export class KodikMedia extends EventTarget implements Media {
         this._paused = false;
         this._ended = false;
         this.emit('play', 'playing');
-        if (key === 'kodik_player_play' && this.want !== 'play') this.user({ type: 'play' });
+        if (this.want !== 'play') {
+          // зритель нажал пуск: теперь «хотим» игру, иначе его следующая пауза сойдёт за ответ на нашу
+          this.want = 'play';
+          this.user({ type: 'play' });
+        }
         return;
       }
       case 'kodik_player_pause':
@@ -224,7 +232,10 @@ export class KodikMedia extends EventTarget implements Media {
         this.setTime(this.currentTime);
         this._paused = true;
         this.emit('pause');
-        if (this.want !== 'pause') this.user({ type: 'pause', position: this.time });
+        if (this.want !== 'pause') {
+          this.want = 'pause';
+          this.user({ type: 'pause', position: this.time });
+        }
         return;
       case 'kodik_player_seek': {
         this.markLoaded();

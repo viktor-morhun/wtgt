@@ -135,15 +135,21 @@ export function usePlayback({ video, media, session, episode, quality, joined, o
       const expected = Math.min(positionAt(s, serverNow()), Math.max(0, duration - 0.05));
       const drift = Math.abs(v.currentTime - expected);
       const threshold = s.paused ? PAUSED_THRESHOLD_S : DRIFT_THRESHOLD_S;
-      if (drift > threshold && !v.seeking) {
+      const needSeek = drift > threshold && !v.seeking;
+      const needPause = s.paused && !v.paused;
+      const needPlay = !s.paused && v.paused && !v.ended;
+      // Kodik (flowplayer) не ставит на паузу и не пускает, пока перематывает: сначала пуск/пауза,
+      // перемотка — следующей сверкой, когда плеер уже в нужном состоянии
+      const stateFirst = v instanceof KodikMedia && (needPause || needPlay);
+      if (needSeek && !stateFirst) {
         mark();
         v.currentTime = expected;
         setCatchingUp(!s.paused);
       }
-      if (s.paused && !v.paused) {
+      if (needPause) {
         mark();
         v.pause();
-      } else if (!s.paused && v.paused && !v.ended) {
+      } else if (needPlay) {
         mark();
         v.play().then(
           () => setBlocked(false),
