@@ -47,6 +47,11 @@ export function Home() {
   const [tab, setTab] = useState<Tab>(() => (rooms.length ? 'rooms' : titles.length ? 'history' : 'latest'));
   const valid = name.trim().length > 0;
 
+  // ник пришёл переносом с другого устройства — подставляем, если своего не было
+  useEffect(() => {
+    if (settings.name) setName((n) => n || settings.name);
+  }, [settings.name]);
+
   useEffect(() => {
     if (!toast) return;
     const t = setTimeout(() => setToast(null), TOAST_MS);
