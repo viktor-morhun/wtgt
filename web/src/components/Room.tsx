@@ -5,7 +5,7 @@ import { getRoom, saveRoom, saveTitle, useTitles } from '../history';
 import { Icon } from '../icons';
 import type { Media } from '../kodik';
 import { enterRoom, hello, leaveRoom, serverNow, useNet } from '../net';
-import { useKodik, usePlayback } from '../playback';
+import { useBufferingReport, useKodik, usePlayback } from '../playback';
 import { useRelease } from '../release';
 import { takeCreated } from '../lobby';
 import { useMediaSession } from '../media-session';
@@ -79,6 +79,7 @@ export function Room({ code }: { code: string }) {
     ? 0
     : net.chat.filter((m) => m.id > seenId && !net.mine.includes(m.fromId)).length;
   useVisualViewport();
+  useBufferingReport(mediaRef, joined);
   useMediaSession({ enabled: joined, release, episode, paused: !playing, media: mediaRef });
 
   useEffect(() => {

@@ -10,7 +10,7 @@ import {
   type Session,
 } from '@wtgt/shared';
 import { KodikMedia, type Media, type UserAction } from './kodik';
-import { send, serverNow } from './net';
+import { getNet, send, serverNow } from './net';
 
 /** Как часто сверяем видео с сессией (design D5). */
 const SYNC_MS = 500;
@@ -274,4 +274,39 @@ export function useKodik(frame: RefObject<HTMLIFrameElement | null>, src: string
     };
   }, [frame, src]);
   return src ? media : null;
+}
+
+/** Загрузка дольше этого — просим комнату подождать (короткие подвисания не в счёт). */
+const STALL_MS = 600;
+const HAVE_FUTURE_DATA = 3;
+
+/**
+ * Своя загрузка — серверу: пока у зрителя грузится видео, комната ждёт его до 5 с (spec synced-playback).
+ * Только у <video>: Kodik о загрузке не сообщает.
+ */
+export function useBufferingReport(media: RefObject<Media | null>, enabled: boolean): void {
+  useEffect(() => {
+    if (!enabled) return;
+    let reported = false;
+    let since = 0;
+    const tick = () => {
+      const v = media.current;
+      const loading =
+        v instanceof HTMLVideoElement && !!v.currentSrc && (v.readyState < HAVE_FUTURE_DATA || v.seeking);
+      if (!loading) {
+        since = 0;
+        if (reported) reported = !send({ type: 'buffering', waiting: false });
+        return;
+      }
+      since ||= performance.now();
+      if (!reported && performance.now() - since >= STALL_MS && getNet().session?.paused === false) {
+        reported = send({ type: 'buffering', waiting: true });
+      }
+    };
+    const timer = setInterval(tick, 200);
+    return () => {
+      clearInterval(timer);
+      if (reported) send({ type: 'buffering', waiting: false });
+    };
+  }, [media, enabled]);
 }

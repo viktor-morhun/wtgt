@@ -6,6 +6,8 @@ type Options = {
   /** пустая комната живёт столько, потом удаляется (spec rooms) */
   emptyTtlMs?: number;
   max?: number;
+  /** столько комната ждёт зрителя, у которого грузится видео */
+  waitMs?: number;
 };
 
 type Room = { hub: Hub; timer?: ReturnType<typeof setTimeout> };
@@ -15,12 +17,14 @@ export class Rooms {
   private readonly rooms = new Map<string, Room>();
   private readonly emptyTtlMs: number;
   private readonly max: number;
+  private readonly waitMs: number | undefined;
 
   constructor(
     private readonly catalog: Catalog,
     private readonly defaultAlias: string | null,
-    { emptyTtlMs = 30 * 60_000, max = 200 }: Options = {},
+    { emptyTtlMs = 30 * 60_000, max = 200, waitMs }: Options = {},
   ) {
+    this.waitMs = waitMs;
     this.emptyTtlMs = emptyTtlMs;
     this.max = max;
   }
@@ -70,7 +74,7 @@ export class Rooms {
   }
 
   private open(code: string): Room {
-    const room: Room = { hub: new Hub(this.catalog, this.defaultAlias) };
+    const room: Room = { hub: new Hub(this.catalog, this.defaultAlias, Date.now, this.waitMs) };
     this.rooms.set(code, room);
     void room.hub.ensureEpisode();
     // комнату создали, но так никто и не зашёл — тоже убираем

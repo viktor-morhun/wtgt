@@ -228,10 +228,18 @@ export function Stage(props: Props) {
         </div>
       )}
       {fullscreen && joined && <ChatOverlay />}
-      {(playback.catchingUp || clock.waiting) && joined && !overlay && (
+      {net.cause === 'wait' && session?.paused && net.by && net.by !== settings.name && !overlay ? (
         <div className="stage-status">
-          <span className="spinner" /> {playback.catchingUp ? 'догоняем…' : 'загрузка…'}
+          <span className="spinner" /> ждём: {net.by}
         </div>
+      ) : (
+        (playback.catchingUp || clock.waiting) &&
+        joined &&
+        !overlay && (
+          <div className="stage-status">
+            <span className="spinner" /> {playback.catchingUp ? 'догоняем…' : 'загрузка…'}
+          </div>
+        )
       )}
       {!net.online && <div className="stage-status stage-offline">нет связи</div>}
       {joined && episode && !overlay && !kodikSrc && (
@@ -455,7 +463,8 @@ function Osd({ session, release }: { session: Session | null; release: Release |
   const version = session?.version;
 
   useEffect(() => {
-    if (!session || !cause || cause === 'join') return;
+    // ожидание видно в углу кадра, пока длится
+    if (!session || !cause || cause === 'join' || cause === 'wait') return;
     const ep = release?.episodes.find((e) => e.id === session.episodeId);
     const t: Record<Cause, string> = {
       join: '',
@@ -469,6 +478,7 @@ function Osd({ session, release }: { session: Session | null; release: Release |
       end: 'Конец',
       restore: `${ep ? `${episodeLabel(ep)} · ` : ''}${formatTime(session.position)}`,
       dub: session.dub ? dubLabel(session.dub) : 'Другая озвучка',
+      wait: '',
     };
     // чужое действие — с автором, своё — без; название озвучки — как есть
     const what = cause === 'dub' ? t[cause] : t[cause].toLowerCase();

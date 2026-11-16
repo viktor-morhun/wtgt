@@ -21,6 +21,8 @@ type Peer = {
   name: string | null;
   /** когда отправлял последние сообщения чата */
   sent: number[];
+  /** у зрителя грузится видео */
+  waiting: boolean;
 };
 
 /** Позиция паузы от клиента берётся, если она не дальше этого от расчётной (design D4). */
@@ -30,6 +32,11 @@ const CHAT_HISTORY = 100;
 /** Не больше CHAT_BURST сообщений за CHAT_WINDOW_MS от одного соединения. */
 const CHAT_BURST = 5;
 const CHAT_WINDOW_MS = 5_000;
+/** Комната ждёт отстающего зрителя не дольше этого, потом играет дальше без него. */
+const WAIT_MS = 5_000;
+/** После ожидания столько не ждём снова: зритель с плохой связью не должен дёргать всех каждую секунду. */
+const WAIT_COOLDOWN_MS = 3_000;
+const WAIT_COOLDOWN_TIMEOUT_MS = 20_000;
 
 /** Сессия просмотра одной комнаты: состояние в памяти, рассылка всем подключённым. */
 export class Hub {
@@ -40,11 +47,15 @@ export class Hub {
   private nextChatId = 1;
   /** в комнате ещё никто ничего не менял — можно восстановить серию и время, сохранённые у зрителя */
   private pristine = true;
+  /** ждём загрузки у кого-то: пауза с этой version, по таймеру — играем дальше */
+  private hold: { version: number; timer: ReturnType<typeof setTimeout> } | null = null;
+  private holdAgainAt = 0;
 
   constructor(
     private readonly catalog: Catalog,
     defaultAlias: string | null,
     private readonly now: () => number = Date.now,
+    private readonly waitMs = WAIT_MS,
   ) {
     this.session = {
       alias: defaultAlias,
@@ -103,7 +114,7 @@ export class Hub {
   }
 
   join(client: Client): void {
-    this.clients.set(client, { id: String(this.nextId++), name: null, sent: [] });
+    this.clients.set(client, { id: String(this.nextId++), name: null, sent: [], waiting: false });
     client.send({ type: 'state', session: this.session, cause: 'join', by: null });
     this.sendMembers(client);
     client.send({ type: 'chat', messages: this.chat, history: true });
@@ -112,6 +123,7 @@ export class Hub {
 
   leave(client: Client): void {
     if (!this.clients.delete(client)) return;
+    this.endHoldIfReady();
     // никого не осталось — ставим на паузу, чтобы при возвращении не убежать на полсерии вперёд
     if (this.clients.size === 0 && !this.session.paused) {
       this.commit({ ...freeze(this.session, this.now()), paused: true }, 'pause', null);
@@ -138,6 +150,9 @@ export class Hub {
         return this.say(client, peer, msg.text);
       case 'restore':
         return this.restore(msg);
+      case 'buffering':
+        peer.waiting = msg.waiting;
+        return msg.waiting ? this.startHold(peer) : this.endHoldIfReady();
     }
     if (!s.episodeId) return; // релиз не загружен — управлять нечем
 
@@ -184,6 +199,32 @@ export class Hub {
       }
       case 'ended':
         return this.ended(msg.episodeId, msg.version);
+    }
+  }
+
+  /** У зрителя грузится видео, а все смотрят — пауза для всех, пока он не догрузится (но не дольше waitMs). */
+  private startHold(peer: Peer): void {
+    const s = this.session;
+    if (!peer.name || s.paused || !s.episodeId || this.hold || this.now() < this.holdAgainAt) return;
+    this.commit({ ...freeze(s, this.now()), paused: true }, 'wait', peer.name);
+    const timer = setTimeout(() => this.endHold(true), this.waitMs);
+    timer.unref?.();
+    this.hold = { version: this.session.version, timer };
+  }
+
+  private endHoldIfReady(): void {
+    if (this.hold && ![...this.clients.values()].some((p) => p.name && p.waiting)) this.endHold(false);
+  }
+
+  /** Все загрузились или ждали слишком долго — играем дальше, если за это время никто ничего не нажал. */
+  private endHold(timedOut: boolean): void {
+    const hold = this.hold;
+    if (!hold) return;
+    clearTimeout(hold.timer);
+    this.hold = null;
+    this.holdAgainAt = this.now() + (timedOut ? WAIT_COOLDOWN_TIMEOUT_MS : WAIT_COOLDOWN_MS);
+    if (this.session.version === hold.version) {
+      this.commit({ ...this.session, paused: false, anchor: this.now() }, 'play', null);
     }
   }
 
@@ -303,6 +344,11 @@ export class Hub {
   /** touched = false — изменение не от зрителей (первая серия при старте), восстановление ещё возможно */
   private commit(next: Session, cause: Cause, by: string | null, touched = true): void {
     if (touched) this.pristine = false;
+    // кто-то нажал сам, пока ждали загрузки, — ожидание больше не наше
+    if (this.hold && cause !== 'wait') {
+      clearTimeout(this.hold.timer);
+      this.hold = null;
+    }
     this.session = { ...next, version: this.session.version + 1 };
     this.broadcast({ type: 'state', session: this.session, cause, by });
   }

@@ -144,6 +144,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('ended'), episodeId: z.string().min(1).max(100), version: z.number().int() }),
   z.object({ type: z.literal('ping'), t0: z.number() }),
   z.object({ type: z.literal('chat'), text: chatTextSchema }),
+  /** у зрителя видео грузится (true) или снова готово (false): комната ждёт его до нескольких секунд */
+  z.object({ type: z.literal('buffering'), waiting: z.boolean() }),
   /** серия и время, сохранённые у зрителя: применяются, только если в комнате ещё ничего не меняли */
   z.object({
     type: z.literal('restore'),
@@ -159,7 +161,18 @@ export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
 /** Что изменило сессию — для коротких подсказок поверх видео. */
 export type Cause =
-  'join' | 'play' | 'pause' | 'seek' | 'rate' | 'episode' | 'release' | 'next' | 'end' | 'restore' | 'dub';
+  | 'join'
+  | 'play'
+  | 'pause'
+  | 'seek'
+  | 'rate'
+  | 'episode'
+  | 'release'
+  | 'next'
+  | 'end'
+  | 'restore'
+  | 'dub'
+  | 'wait';
 
 export type ErrorCode = 'not_found' | 'unavailable' | 'bad_request' | 'too_fast';
 

@@ -562,3 +562,64 @@ describe('поиск', () => {
     expect(await (await fetch(`${http}/api/random`)).json()).toEqual(card);
   });
 });
+
+describe('ждём отстающих', () => {
+  async function playing(waitMs = 5_000) {
+    const s = await start(okCatalog, { rooms: { waitMs } });
+    const code = await s.room();
+    const a = await connect(s.url(code));
+    const b = await connect(s.url(code));
+    a.send({ type: 'hello', name: 'Витя' });
+    b.send({ type: 'hello', name: 'Вика' });
+    await a.next(names('Витя', 'Вика'));
+    a.send({ type: 'play' });
+    await b.next(state('play'));
+    await a.next(state('play'));
+    return { ...s, code, a, b };
+  }
+
+  it('у Вики грузится — пауза у всех с её ником; загрузилась — играем дальше', async () => {
+    const { a, b } = await playing();
+    b.send({ type: 'buffering', waiting: true });
+    expect(await a.next(state('wait'))).toMatchObject({ by: 'Вика', session: { paused: true } });
+    b.send({ type: 'buffering', waiting: false });
+    expect(await a.next(state('play'))).toMatchObject({ by: null, session: { paused: false } });
+    a.close();
+    b.close();
+  });
+
+  it('не дольше waitMs, потом без неё; сразу снова не ждём', async () => {
+    const { a, b } = await playing(100);
+    b.send({ type: 'buffering', waiting: true });
+    await a.next(state('wait'));
+    expect(sessionOf(await a.next(state('play'), 1000)).paused).toBe(false);
+    b.send({ type: 'buffering', waiting: false });
+    b.send({ type: 'buffering', waiting: true });
+    await sleep(100);
+    expect(a.log.filter(state('wait'))).toHaveLength(0);
+    a.close();
+    b.close();
+  });
+
+  it('пауза вручную во время ожидания отменяет его; без ника и на паузе не ждём', async () => {
+    const { a, b, url, code } = await playing();
+    b.send({ type: 'buffering', waiting: true });
+    await a.next(state('wait'));
+    a.send({ type: 'play' });
+    await a.next(state('play'));
+    a.send({ type: 'pause', position: 0 });
+    await a.next(state('pause'));
+    b.send({ type: 'buffering', waiting: false });
+    await sleep(50);
+    expect(a.log.filter(state('play'))).toHaveLength(0);
+    const anon = await connect(url(code));
+    a.send({ type: 'play' });
+    await a.next(state('play'));
+    anon.send({ type: 'buffering', waiting: true });
+    await sleep(50);
+    expect(a.log.filter(state('wait'))).toHaveLength(0);
+    a.close();
+    b.close();
+    anon.close();
+  });
+});
