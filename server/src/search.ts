@@ -39,6 +39,14 @@ const rawYummy = z.object({
   poster: z.record(z.string(), z.string().nullish()).nullish(),
 });
 
+/** Один и тот же тайтл в разных источниках: название без регистра, ё и знаков, плюс год (если известен). */
+export const sameTitle = (c: Pick<TitleCard, 'title' | 'year'>) =>
+  c.title
+    .toLowerCase()
+    .replace(/ё/g, 'е')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim() + (c.year ? `|${c.year}` : '');
+
 /** Карточки по одной: битая запись не роняет весь ответ. */
 const each = <T>(schema: z.ZodType<T>, list: unknown): T[] =>
   (Array.isArray(list) ? list : []).flatMap((x) => {
@@ -53,7 +61,7 @@ export function libriaCards(raw: unknown): TitleCard[] {
       alias: r.alias,
       title: r.name.main || r.name.english || r.alias,
       poster: poster ? new URL(poster, ANILIBRIA_ORIGIN).href : null,
-      year: r.year ?? null,
+      year: r.year || null,
       kind: r.type?.description ?? null,
       episodes: r.episodes_total || null,
       source: 'AniLibria',
@@ -69,7 +77,7 @@ export function yummyCards(raw: unknown): TitleCard[] {
       alias: YUMMY_PREFIX + r.anime_url,
       title: r.title,
       poster: poster ? (poster.startsWith('//') ? `https:${poster}` : poster) : null,
-      year: r.year ?? null,
+      year: r.year || null,
       kind: r.type?.shortname ?? r.type?.name ?? null,
       episodes: null,
       source: 'YummyAnime',
@@ -77,7 +85,14 @@ export function yummyCards(raw: unknown): TitleCard[] {
   });
 }
 
-type Options = { fetch?: typeof fetch; ttlMs?: number; timeoutMs?: number; maxEntries?: number };
+type Options = {
+  fetch?: typeof fetch;
+  ttlMs?: number;
+  timeoutMs?: number;
+  maxEntries?: number;
+  /** столько живёт в кэше ответ, где один из источников не ответил */
+  partialTtlMs?: number;
+};
 
 /** Ответы обоих источников с кэшем в памяти; один источник лёг — отдаём второй. */
 export function createFinder({
@@ -85,6 +100,7 @@ export function createFinder({
   ttlMs = 10 * 60_000,
   timeoutMs = 8_000,
   maxEntries = 300,
+  partialTtlMs = 30_000,
 }: Options = {}): Finder {
   const cache = new Map<string, { at: number; value: Promise<TitleCard[]> }>();
 
@@ -108,6 +124,13 @@ export function createFinder({
     return value;
   }
 
+  /** Убрать ответ из кэша через ms (если его не успели заменить). */
+  function forget(key: string, ms: number): void {
+    const hit = cache.get(key);
+    const timer = setTimeout(() => cache.get(key) === hit && cache.delete(key), ms);
+    timer.unref?.();
+  }
+
   return {
     search(query) {
       const q = query.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 100);
@@ -124,8 +147,13 @@ export function createFinder({
         }
         const ok = (r: PromiseSettledResult<TitleCard[]>) =>
           r.status === 'fulfilled' ? r.value.slice(0, PER_SOURCE) : [];
-        // AniLibria — первыми: у неё своё видео и наша панель управления
-        return [...ok(libria), ...ok(yummy)];
+        // AniLibria — первыми: у неё своё видео и наша панель управления;
+        // тайтлы, которые есть на AniLibria, из YummyAnime не показываем
+        // один источник не ответил — такой ответ ненадолго: следующий поиск спросит оба заново
+        if (libria.status === 'rejected' || yummy.status === 'rejected') forget(`s:${q}`, partialTtlMs);
+        const first = ok(libria);
+        const seen = new Set(first.map(sameTitle));
+        return [...first, ...ok(yummy).filter((c) => !seen.has(sameTitle(c)))];
       });
     },
     async random() {

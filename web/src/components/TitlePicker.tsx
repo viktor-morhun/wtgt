@@ -1,11 +1,14 @@
-import { useState, type ReactNode } from 'react';
+import { Fragment, useState, type ReactNode } from 'react';
 import { isYummy, parseAlias, type TitleCard } from '@wtgt/shared';
 import { Icon } from '../icons';
 import { randomTitle, useLatest, useSearch } from '../titles';
 
-/** «2021 · ТВ · 24 эп. · AniLibria» */
+/** «2021 · ТВ · 24 эп.» — источник в заголовке группы */
 export const cardMeta = (c: TitleCard) =>
-  [c.year, c.kind, c.episodes ? `${c.episodes} эп.` : null, c.source].filter(Boolean).join(' · ');
+  [c.year, c.kind, c.episodes ? `${c.episodes} эп.` : null].filter(Boolean).join(' · ');
+
+/** Источники в порядке приоритета: у AniLibria своё видео и наша панель, YummyAnime — то, чего там нет. */
+const SOURCES: TitleCard['source'][] = ['AniLibria', 'YummyAnime'];
 
 /** Похоже на ссылку или алиас с приставкой, а не на название. */
 const looksLikeLink = (s: string) => /[./:]/.test(s.trim());
@@ -86,7 +89,15 @@ export function TitlePicker({
         )
       ) : query.trim().length < 2 ? null : search.cards ? (
         search.cards.length ? (
-          <TitleList cards={search.cards} onPick={onPick} pending={pending} />
+          SOURCES.map((source) => {
+            const cards = search.cards!.filter((c) => c.source === source);
+            return cards.length ? (
+              <Fragment key={source}>
+                <h3 className="picker-head">{source === 'AniLibria' ? 'AniLibria' : 'ещё на YummyAnime'}</h3>
+                <TitleList cards={cards} onPick={onPick} pending={pending} />
+              </Fragment>
+            ) : null;
+          })
         ) : (
           <div className="empty hint">Ничего не нашлось</div>
         )

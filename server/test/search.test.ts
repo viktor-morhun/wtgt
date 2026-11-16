@@ -77,6 +77,39 @@ describe('карточки тайтлов', () => {
     await expect(createFinder({ fetch: none }).random()).rejects.toThrow('Не повезло');
   });
 
+  it('поиск: тайтл, который есть на AniLibria, из YummyAnime не показываем; год 0 — неизвестен', async () => {
+    const both = {
+      response: [
+        { anime_url: 'tokijskie-mstiteli', title: 'Токийские Мстители!', year: 2021 },
+        { anime_url: 'tokyo-2', title: 'Токийские мстители', year: 2023 },
+        { anime_url: 'new', title: 'Токийские мстители: Новое', year: 0 },
+      ],
+    };
+    const fetch = (async (url: string) =>
+      new Response(JSON.stringify(url.includes('anilibria') ? libria : both))) as typeof globalThis.fetch;
+    const cards = await createFinder({ fetch }).search('мстители');
+    expect(cards.map((c) => [c.alias, c.year])).toEqual([
+      ['tokyo-revengers', 2021],
+      ['yummy:tokyo-2', 2023],
+      ['yummy:new', null],
+    ]);
+  });
+
+  it('поиск: неполный ответ (один источник лёг) кэшируется ненадолго', async () => {
+    let libriaUp = false;
+    const fetch = (async (url: string) =>
+      url.includes('anilibria')
+        ? libriaUp
+          ? new Response(JSON.stringify(libria))
+          : new Response('down', { status: 403 })
+        : new Response(JSON.stringify(yummy))) as typeof globalThis.fetch;
+    const finder = createFinder({ fetch, partialTtlMs: 20 });
+    expect((await finder.search('наруто')).map((c) => c.source)).toEqual(['YummyAnime']);
+    libriaUp = true;
+    await new Promise((r) => setTimeout(r, 40));
+    expect((await finder.search('наруто')).map((c) => c.source)).toEqual(['AniLibria', 'YummyAnime']);
+  });
+
   it('поиск: оба источника легли — ошибка, не кэшируется', async () => {
     let ok = false;
     const fetch = (async (url: string) =>
