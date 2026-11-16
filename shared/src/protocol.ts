@@ -114,6 +114,14 @@ export function newRoomCode(random: (n: number) => number = (n) => Math.floor(Ma
 
 export type Member = { id: string; name: string };
 
+/** POST /api/transfer: комнаты, история и ник — как их хранит браузер (разбирает получатель). */
+export const transferSchema = z.object({
+  rooms: z.array(z.record(z.string(), z.unknown())).max(50),
+  history: z.array(z.record(z.string(), z.unknown())).max(100),
+  name: z.string().max(NAME_MAX).optional(),
+});
+export type Transfer = z.infer<typeof transferSchema>;
+
 /** POST /api/rooms: комната сразу с тайтлом (и с серии и времени — продолжить из истории). */
 export const createRoomSchema = z
   .object({

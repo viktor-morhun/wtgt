@@ -507,6 +507,28 @@ describe('комната без тайтла и с тайтлом сразу', (
   });
 });
 
+describe('перенос истории', () => {
+  it('POST /api/transfer → код; GET по коду (в любом регистре) отдаёт то же; чужой код — 404', async () => {
+    const { http } = await start();
+    const data = { rooms: [{ code: 'abcdef' }], history: [{ alias: 'tokyo-revengers' }], name: 'Вика' };
+    const res = await fetch(`${http}/api/transfer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const { code } = (await res.json()) as { code: string };
+    expect(code).toMatch(/^[a-z2-9]{6}$/);
+    expect(await (await fetch(`${http}/api/transfer/${code.toUpperCase()}`)).json()).toEqual(data);
+    expect((await fetch(`${http}/api/transfer/zzzzzz`)).status).toBe(404);
+    const bad = await fetch(`${http}/api/transfer`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ rooms: 'нет' }),
+    });
+    expect(bad.status).toBe(400);
+  });
+});
+
 describe('счётчики серий', () => {
   it('/api/counts: число доступных серий; неизвестные тайтлы пропускаются', async () => {
     const { http } = await start();

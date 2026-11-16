@@ -5,6 +5,8 @@ import Fastify, { type FastifyServerOptions } from 'fastify';
 import {
   createRoomSchema,
   isPlayable,
+  isRoomCode,
+  transferSchema,
   parseAlias,
   parseClientMessage,
   type ServerMessage,
@@ -13,6 +15,7 @@ import { CatalogError, type Catalog } from './anilibria';
 import type { Client } from './hub';
 import { Rooms } from './rooms';
 import type { Finder } from './search';
+import { Transfers } from './transfers';
 
 type Options = {
   catalog: Catalog;
@@ -107,6 +110,22 @@ export async function buildApp({
       }),
     );
     return counts;
+  });
+
+  // перенос комнат и истории на другое устройство: код из 6 символов на 10 минут
+  const transfers = new Transfers();
+  app.post('/api/transfer', { bodyLimit: 256 * 1024 }, async (req, reply) => {
+    const body = transferSchema.safeParse(req.body);
+    if (!body.success) return reply.code(400).send({ code: 'bad_request', message: 'Непонятный запрос' });
+    const code = transfers.put(body.data);
+    if (!code) return reply.code(503).send({ code: 'unavailable', message: 'Попробуй через минуту' });
+    return { code };
+  });
+  app.get<{ Params: { code: string } }>('/api/transfer/:code', async (req, reply) => {
+    const code = req.params.code.trim().toLowerCase();
+    const data = isRoomCode(code) ? transfers.get(code) : undefined;
+    if (!data) return reply.code(404).send({ code: 'not_found', message: 'Код не найден или устарел' });
+    return data;
   });
 
   // пустое тело — комната без тайтла; { alias, episodeId?, position? } — сразу с ним

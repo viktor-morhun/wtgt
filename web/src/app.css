@@ -953,6 +953,77 @@ svg.stroke text {
   vertical-align: 1px;
 }
 
+/* перенос истории кодом */
+.transfer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 18px auto 0;
+  padding: 8px 14px;
+  border-radius: 999px;
+  color: var(--hint);
+  font-size: 13px;
+}
+.home-browse {
+  display: flex;
+  flex-direction: column;
+}
+.transfer-link svg {
+  width: 16px;
+  height: 16px;
+}
+.transfer-sheet {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.transfer-sheet h3 {
+  margin: 10px 4px 10px;
+}
+.transfer-sheet h3 + * {
+  margin-top: 0;
+}
+.transfer-sheet .btn-wide {
+  margin: 0 0 18px;
+}
+.transfer-code {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.transfer-code span {
+  width: 44px;
+  height: 56px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  text-transform: uppercase;
+  animation: pop 0.45s var(--spring) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+.transfer-code .hint {
+  flex-basis: 100%;
+  text-align: center;
+  margin-top: 4px;
+}
+.transfer-in {
+  display: flex;
+  gap: 8px;
+}
+.transfer-in input {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+.transfer-in input::placeholder {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
 /* поиск тайтла: поле, строки с постером; в комнате и в шторке — то же самое */
 .picker-field input {
   padding-left: 44px;

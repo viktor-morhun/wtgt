@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { formatTime, NAME_MAX, type TitleCard } from '@wtgt/shared';
 import {
   removeRoom,
@@ -15,6 +15,7 @@ import { navigate, roomPath } from '../route';
 import { setSettings, useSettings } from '../settings';
 import { randomTitle, useEpisodeCounts, useLatest } from '../titles';
 import { Poster, TitlePicker } from './TitlePicker';
+import { TransferSheet } from './TransferSheet';
 
 const TOAST_MS = 2_500;
 
@@ -34,6 +35,8 @@ export function Home() {
   /** что сейчас открывается: «new» — пустая комната, иначе алиас */
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [transfer, setTransfer] = useState(false);
+  const closeTransfer = useCallback(() => setTransfer(false), []);
   const rooms = useRooms();
   const history = useTitles();
   // у тайтлов из истории вышли новые серии — метка «+1 серия», такие тайтлы наверху
@@ -174,7 +177,11 @@ export function Home() {
               <div className="empty hint">Пока пусто</div>
             ))}
         </TitlePicker>
+        <button className="transfer-link rp" onClick={() => setTransfer(true)}>
+          {Icon.transfer} перенести историю на другое устройство
+        </button>
       </section>
+      {transfer && <TransferSheet onClose={closeTransfer} onDone={setToast} />}
       {toast && (
         <div className="toasts">
           <div className="toast">{toast}</div>

@@ -79,6 +79,12 @@ export const Icon = {
       <circle cx="12" cy="12" r="0.6" fill="currentColor" />
     </svg>
   ),
+  transfer: (
+    <svg viewBox="0 0 24 24" aria-hidden className="stroke">
+      <path d="M7 4h10M7 20h10" />
+      <path d="M8 9l4-3 4 3M8 15l4 3 4-3" />
+    </svg>
+  ),
   pip: (
     <svg viewBox="0 0 24 24" aria-hidden className="stroke">
       <rect x="3" y="5" width="18" height="14" rx="2.5" />

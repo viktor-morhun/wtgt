@@ -78,6 +78,7 @@ function store<T extends { at: number }>(key: string, max: number, parse: (raw: 
     return () => subs.delete(f);
   };
   return {
+    parse,
     get: () => current,
     write(next: T[]) {
       current = next.slice(0, max);
@@ -180,3 +181,42 @@ export function removeTitle(alias: string): void {
 }
 
 export const useTitles = titles.use;
+
+/** Комнаты и история этого браузера — для переноса на другое устройство кодом. */
+export const exportHistory = () => ({ rooms: rooms.get(), history: titles.get() });
+
+/**
+ * Влить перенесённое с другого устройства: из двух записей одной комнаты или тайтла берём свежую,
+ * просмотренные доли серий — наибольшие. Возвращает, сколько записей добавилось или обновилось.
+ */
+export function importHistory(data: { rooms?: unknown; history?: unknown }): number {
+  let changed = 0;
+  const list = (x: unknown) => (Array.isArray(x) ? x : []);
+
+  const roomList = [...rooms.get()];
+  for (const e of list(data.rooms).flatMap((x) => rooms.parse(x) ?? [])) {
+    const i = roomList.findIndex((r) => r.code === e.code);
+    if (i < 0) roomList.push(e);
+    else if (roomList[i]!.at < e.at) roomList[i] = e;
+    else continue;
+    changed++;
+  }
+  rooms.write(roomList.sort((a, b) => b.at - a.at));
+
+  const titleList = [...titles.get()];
+  for (const e of list(data.history).flatMap((x) => titles.parse(x) ?? [])) {
+    const i = titleList.findIndex((t) => t.alias === e.alias);
+    const prev = titleList[i];
+    if (!prev) {
+      titleList.push(e);
+      changed++;
+      continue;
+    }
+    const seen = { ...prev.seen };
+    for (const [id, v] of Object.entries(e.seen)) seen[id] = Math.max(seen[id] ?? 0, v);
+    titleList[i] = { ...(prev.at < e.at ? e : prev), seen };
+    changed++;
+  }
+  titles.write(titleList.sort((a, b) => b.at - a.at));
+  return changed;
+}
