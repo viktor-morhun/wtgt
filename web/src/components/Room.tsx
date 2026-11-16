@@ -8,6 +8,7 @@ import { enterRoom, hello, leaveRoom, serverNow, useNet } from '../net';
 import { useKodik, usePlayback } from '../playback';
 import { useRelease } from '../release';
 import { takeCreated } from '../lobby';
+import { useMediaSession } from '../media-session';
 import { navigate, roomPath } from '../route';
 import { getSettings, setSettings, useSettings } from '../settings';
 import { useVisualViewport } from '../viewport';
@@ -78,6 +79,7 @@ export function Room({ code }: { code: string }) {
     ? 0
     : net.chat.filter((m) => m.id > seenId && !net.mine.includes(m.fromId)).length;
   useVisualViewport();
+  useMediaSession({ enabled: joined, release, episode, paused: !playing, media: mediaRef });
 
   useEffect(() => {
     if (chatVisible) setSeenId(lastChatId);

@@ -332,6 +332,16 @@ export function Stage(props: Props) {
                 </Menu>
               )}
               <Volume />
+              {cmd.canPip(videoRef.current) && (
+                <button
+                  className="icon-btn vctl-btn rp"
+                  onClick={() => cmd.togglePip(videoRef.current)}
+                  aria-label="Картинка в картинке"
+                  title="Картинка в картинке — видео поверх других окон"
+                >
+                  {Icon.pip}
+                </button>
+              )}
               <button
                 className="icon-btn vctl-btn rp"
                 onClick={() => cmd.toggleFullscreen(stageRef.current, mediaRef.current)}

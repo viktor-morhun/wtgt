@@ -82,3 +82,32 @@ export function toggleFullscreen(stage: HTMLElement | null, video: Media | null)
   }
   (video as FsVideo | null)?.webkitEnterFullscreen?.();
 }
+
+type PipVideo = HTMLVideoElement & {
+  webkitSupportsPresentationMode?: (mode: string) => boolean;
+  webkitSetPresentationMode?: (mode: string) => void;
+  webkitPresentationMode?: string;
+};
+
+/** Браузер умеет «картинку в картинке» для этого видео. */
+export const canPip = (video: HTMLVideoElement | null): boolean =>
+  !!video &&
+  ((document.pictureInPictureEnabled && !!video.requestPictureInPicture) ||
+    !!(video as PipVideo).webkitSupportsPresentationMode?.('picture-in-picture'));
+
+/** «Картинка в картинке»: видео в маленьком окне поверх других приложений, синхронизация продолжается. */
+export function togglePip(video: HTMLVideoElement | null): void {
+  if (!video) return;
+  if (document.pictureInPictureElement) {
+    void document.exitPictureInPicture().catch(() => {});
+    return;
+  }
+  if (document.pictureInPictureEnabled && video.requestPictureInPicture) {
+    void video.requestPictureInPicture().catch(() => {});
+    return;
+  }
+  const v = video as PipVideo;
+  v.webkitSetPresentationMode?.(
+    v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture',
+  );
+}

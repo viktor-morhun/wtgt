@@ -21,7 +21,13 @@ const APPLY_GUARD_MS = 500;
 /** Зритель нажал в плеере Kodik — столько не возвращаем плеер к сессии, пока сервер не ответил. */
 const USER_GRACE_MS = 1_500;
 
-type IOSVideo = Media & { webkitDisplayingFullscreen?: boolean };
+type IOSVideo = Media & { webkitDisplayingFullscreen?: boolean; webkitPresentationMode?: string };
+
+/** Видео сейчас в системном плеере: нативный полный экран iOS или «картинка в картинке». */
+const systemControls = (v: Media) =>
+  !!(v as IOSVideo).webkitDisplayingFullscreen ||
+  (v as IOSVideo).webkitPresentationMode === 'picture-in-picture' ||
+  (!!document.pictureInPictureElement && document.pictureInPictureElement === (v as unknown as Element));
 
 /** Ближайшее доступное качество к выбранному (spec anilibria-source). */
 export function pickQuality(ep: Episode, preferred: Quality): Quality | null {
@@ -165,9 +171,10 @@ export function usePlayback({ video, media, session, episode, quality, joined, o
         send({ type: 'ended', episodeId: episode.id, version: s.version });
       }
     };
-    // нативный полный экран iOS: управление системное, его действия превращаем в команды (design D6)
+    // нативный полный экран iOS и «картинка в картинке»: управление системное,
+    // его действия превращаем в команды (design D6)
     const native = (e: Event) => {
-      if (!(v as IOSVideo).webkitDisplayingFullscreen || performance.now() < applyingUntil.current) return;
+      if (!systemControls(v) || performance.now() < applyingUntil.current) return;
       if (e.type === 'play') send({ type: 'play' });
       else if (e.type === 'pause' && !v.ended) send({ type: 'pause', position: v.currentTime });
       else if (e.type === 'seeked') send({ type: 'seek', position: v.currentTime });
