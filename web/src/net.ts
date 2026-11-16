@@ -133,7 +133,7 @@ function drop(sock: WebSocket): void {
   sock.close();
   clearInterval(pingTimer);
   const s = state.session;
-  if (s?.episodeId) {
+  if (s?.episodeId && s.alias) {
     const position = Math.min(24 * 3600, positionAt(s, serverNow()));
     resume = { type: 'restore', alias: s.alias, episodeId: s.episodeId, position, rate: s.rate, dub: s.dub };
   }

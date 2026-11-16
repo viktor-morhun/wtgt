@@ -43,7 +43,7 @@ export class Hub {
 
   constructor(
     private readonly catalog: Catalog,
-    defaultAlias: string,
+    defaultAlias: string | null,
     private readonly now: () => number = Date.now,
   ) {
     this.session = {
@@ -69,8 +69,8 @@ export class Hub {
 
   /** Подставить первую серию, если релиз ещё не загружался (старт при недоступной AniLibria). */
   async ensureEpisode(): Promise<void> {
-    if (this.session.episodeId) return;
     const alias = this.session.alias;
+    if (this.session.episodeId || !alias) return;
     let release: Release;
     try {
       release = await this.catalog.get(alias);
@@ -80,6 +80,26 @@ export class Hub {
     const first = release.episodes.find(isPlayable);
     if (!first || this.session.episodeId || this.session.alias !== alias) return;
     this.commit({ ...this.session, ...this.at(first), position: 0, paused: true }, 'release', null, false);
+  }
+
+  /** Комнату создали сразу с тайтлом: с первой серии или с серии и времени из истории зрителя. */
+  start(release: Release, episodeId?: string, position = 0): void {
+    const picked = release.episodes.find((e) => e.id === episodeId && isPlayable(e));
+    const ep = picked ?? release.episodes.find(isPlayable);
+    if (!ep) return;
+    const at = picked && ep.duration > 0 ? Math.min(position, ep.duration) : picked ? position : 0;
+    this.commit(
+      {
+        ...this.session,
+        alias: release.alias,
+        ...this.at(ep),
+        position: at,
+        paused: true,
+        anchor: this.now(),
+      },
+      'release',
+      null,
+    );
   }
 
   join(client: Client): void {
@@ -212,10 +232,11 @@ export class Hub {
   /** Конец серии: следующая играет сразу; дубли от других клиентов отсекаются по version. */
   private async ended(episodeId: string, version: number): Promise<void> {
     const fresh = () => this.session.episodeId === episodeId && this.session.version === version;
-    if (!fresh() || this.session.paused) return;
+    const alias = this.session.alias;
+    if (!fresh() || this.session.paused || !alias) return;
     let release: Release;
     try {
-      release = await this.catalog.get(this.session.alias);
+      release = await this.catalog.get(alias);
     } catch {
       return;
     }
@@ -264,6 +285,7 @@ export class Hub {
   }
 
   private async release(client: Client): Promise<Release | null> {
+    if (!this.session.alias) return null;
     try {
       return await this.catalog.get(this.session.alias);
     } catch (e) {

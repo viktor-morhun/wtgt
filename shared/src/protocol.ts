@@ -37,6 +37,18 @@ export type Release = {
   episodes: Episode[];
 };
 
+/** Тайтл в поиске и в «новом» — без серий; alias годится для сессии. */
+export type TitleCard = {
+  alias: string;
+  title: string;
+  poster: string | null;
+  year: number | null;
+  /** «ТВ», «Фильм», … */
+  kind: string | null;
+  episodes: number | null;
+  source: 'AniLibria' | 'YummyAnime';
+};
+
 export const rateSchema = z.union(RATES.map((r) => z.literal(r)) as [z.ZodLiteral<Rate>, z.ZodLiteral<Rate>]);
 const position = z
   .number()
@@ -46,8 +58,9 @@ const position = z
 
 /** Общая сессия: источник правды — сервер (design D4). */
 export const sessionSchema = z.object({
-  alias: z.string(),
-  /** null — релиз ещё не удалось загрузить */
+  /** null — тайтл в комнате ещё не выбран */
+  alias: z.string().nullable(),
+  /** null — тайтла нет или релиз ещё не удалось загрузить */
   episodeId: z.string().nullable(),
   paused: z.boolean(),
   /** позиция в секундах на момент anchor */
@@ -96,6 +109,16 @@ export function newRoomCode(random: (n: number) => number = (n) => Math.floor(Ma
 }
 
 export type Member = { id: string; name: string };
+
+/** POST /api/rooms: комната сразу с тайтлом (и с серии и времени — продолжить из истории). */
+export const createRoomSchema = z
+  .object({
+    alias: z.string().min(1).max(120),
+    episodeId: z.string().min(1).max(100).optional(),
+    position: position.optional(),
+  })
+  .partial()
+  .nullish();
 
 export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hello'), name: nameSchema }),

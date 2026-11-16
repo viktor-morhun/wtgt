@@ -2,14 +2,18 @@ import { existsSync } from 'node:fs';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import Fastify, { type FastifyServerOptions } from 'fastify';
-import { parseClientMessage, type ServerMessage } from '@wtgt/shared';
+import { createRoomSchema, parseAlias, parseClientMessage, type ServerMessage } from '@wtgt/shared';
 import { CatalogError, type Catalog } from './anilibria';
 import type { Client } from './hub';
 import { Rooms } from './rooms';
+import type { Finder } from './search';
 
 type Options = {
   catalog: Catalog;
-  defaultRelease: string;
+  /** поиск тайтлов и «новое»; без него /api/search и /api/latest отвечают 404 */
+  finder?: Finder;
+  /** тайтл новой комнаты; null — комната начинается без тайтла */
+  defaultRelease?: string | null;
   /** собранный web/dist; без него сервер отдаёт только API и /ws */
   webDist?: string;
   logger?: FastifyServerOptions['logger'];
@@ -23,7 +27,8 @@ export const WS_CLOSE_NO_ROOM = 4404;
 
 export async function buildApp({
   catalog,
-  defaultRelease,
+  finder,
+  defaultRelease = null,
   webDist,
   logger = false,
   rooms: roomOpts,
@@ -51,9 +56,45 @@ export async function buildApp({
     },
   );
 
-  app.post('/api/rooms', async (_req, reply) => {
+  const fail = (reply: { code(n: number): { send(b: unknown): unknown } }, e: unknown) => {
+    const err = e instanceof CatalogError ? e : new CatalogError('unavailable', 'Источник не отвечает');
+    return reply.code(err.code === 'not_found' ? 404 : 502).send({ code: err.code, message: err.message });
+  };
+
+  if (finder) {
+    app.get<{ Querystring: { q?: string } }>('/api/search', async (req, reply) => {
+      try {
+        return await finder.search(req.query.q ?? '');
+      } catch (e) {
+        return fail(reply, e);
+      }
+    });
+    app.get('/api/latest', async (_req, reply) => {
+      try {
+        return await finder.latest();
+      } catch (e) {
+        return fail(reply, e);
+      }
+    });
+  }
+
+  // пустое тело — комната без тайтла; { alias, episodeId?, position? } — сразу с ним
+  app.post('/api/rooms', async (req, reply) => {
+    const body = createRoomSchema.safeParse(req.body ?? null);
+    if (!body.success) return reply.code(400).send({ code: 'bad_request', message: 'Непонятный запрос' });
+    let release = null;
+    if (body.data?.alias) {
+      const alias = parseAlias(body.data.alias);
+      if (!alias) return reply.code(404).send({ code: 'not_found', message: 'Релиз не найден' });
+      try {
+        release = await catalog.get(alias);
+      } catch (e) {
+        return fail(reply, e);
+      }
+    }
     const code = rooms.create();
     if (!code) return reply.code(503).send({ code: 'unavailable', message: 'Слишком много комнат' });
+    if (release) rooms.hub(code)!.start(release, body.data?.episodeId, body.data?.position);
     return { code };
   });
 

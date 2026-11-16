@@ -39,6 +39,9 @@ interface Props {
   mediaRef: RefObject<Media | null>;
   /** адрес плеера Kodik текущей озвучки; null — играет <video> */
   kodikSrc: string | null;
+  /** в комнате ещё не выбран тайтл */
+  empty: boolean;
+  onPickTitle(): void;
   release: Release | null;
   releaseError: string | null;
   onReloadRelease(): void;
@@ -129,8 +132,17 @@ export function Stage(props: Props) {
         }}
       />
     );
-  } else if (!joined && release) {
+  } else if (!joined && (release || props.empty)) {
     overlay = <Join release={release} episode={episode} onJoin={props.onJoin} />;
+  } else if (props.empty) {
+    overlay = (
+      <div className="stage-cover pick-cover">
+        <div className="title">Что смотрим?</div>
+        <button className="btn btn-wide rp" onClick={props.onPickTitle}>
+          {Icon.search} Выбрать аниме
+        </button>
+      </div>
+    );
   } else if (playback.blocked && !kodikSrc) {
     overlay = (
       <div className="stage-cover">
@@ -315,7 +327,7 @@ function Join({
   episode,
   onJoin,
 }: {
-  release: Release;
+  release: Release | null;
   episode: Episode | null;
   onJoin(name: string): void;
 }) {
@@ -330,11 +342,15 @@ function Join({
         if (valid) onJoin(name.trim());
       }}
     >
-      {release.poster && <div className="ambient" style={{ backgroundImage: `url(${release.poster})` }} />}
-      {release.poster && <img className="join-poster" src={release.poster} alt="" />}
+      {release?.poster && <div className="ambient" style={{ backgroundImage: `url(${release.poster})` }} />}
+      {release?.poster && <img className="join-poster" src={release.poster} alt="" />}
       <div className="join-meta">
-        <div className="title">{release.title}</div>
-        {episode && <div className="subtitle">{episodeLabel(episode)}</div>}
+        <div className="title">{release?.title ?? 'Смотрим вместе'}</div>
+        {episode ? (
+          <div className="subtitle">{episodeLabel(episode)}</div>
+        ) : (
+          !release && <div className="subtitle">аниме ещё не выбрано</div>
+        )}
         {members.length > 0 && (
           <div className="join-members">
             <Avatars members={members} />

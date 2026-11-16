@@ -1,37 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { positionAt } from '@wtgt/shared';
 import * as cmd from '../commands';
-import { getRoom, saveRoom } from '../history';
+import { getRoom, saveRoom, saveTitle, useTitles } from '../history';
 import { Icon } from '../icons';
 import type { Media } from '../kodik';
 import { enterRoom, hello, leaveRoom, serverNow, useNet } from '../net';
 import { useKodik, usePlayback } from '../playback';
 import { useRelease } from '../release';
+import { takeCreated } from '../lobby';
 import { navigate, roomPath } from '../route';
 import { getSettings, setSettings, useSettings } from '../settings';
 import { useVisualViewport } from '../viewport';
 import { Avatars } from './Avatars';
 import { Chat } from './Chat';
 import { Dubs, Episodes } from './Episodes';
-import { CREATED_KEY } from './Home';
 import { NameSheet } from './NameSheet';
-import { ReleaseSheet } from './ReleaseSheet';
+import { ReleaseSheet, usePickRelease } from './ReleaseSheet';
 import { dubLabel, episodeLabel, Stage } from './Stage';
+import { LatestList, TitlePicker } from './TitlePicker';
 
 const TOAST_MS = 2_000;
 /** Как часто запоминаем время просмотра, пока серия идёт. */
 const SAVE_MS = 5_000;
-
-/** Только что создал эту комнату на главной — входим сразу под сохранённым ником. */
-function takeCreated(code: string): boolean {
-  try {
-    if (sessionStorage.getItem(CREATED_KEY) !== code) return false;
-    sessionStorage.removeItem(CREATED_KEY);
-    return !!getSettings().name.trim();
-  } catch {
-    return false;
-  }
-}
 
 /** Комната: видео и серии, шапка с участниками и приглашением (spec rooms). */
 export function Room({ code }: { code: string }) {
@@ -58,12 +48,17 @@ export function Room({ code }: { code: string }) {
   const joinedRef = useRef(joined);
   joinedRef.current = joined;
   const [sheet, setSheet] = useState<'release' | 'name' | null>(null);
+  const closeSheet = useCallback(() => setSheet(null), []);
+  // тайтл в комнате ещё не выбран — вместо серий поиск тайтла
+  const empty = !!session && session.alias === null;
+  const picker = usePickRelease();
+  const watched = useTitles().find((t) => t.alias === release?.alias)?.seen;
   const [toast, setToast] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
-  const [tabPicked, setTab] = useState<'chat' | 'episodes' | 'dubs'>('chat');
+  const [tabPicked, setTab] = useState<'chat' | 'episodes' | 'dubs'>('episodes');
   // вкладка озвучек — только у серий с выбором озвучки
   const hasDubs = !!episode?.dubs?.length;
-  const tab = tabPicked === 'dubs' && !hasDubs ? 'chat' : tabPicked;
+  const tab = tabPicked === 'dubs' && !hasDubs ? 'episodes' : tabPicked;
   const [typing, setTyping] = useState(false);
   const [seenId, setSeenId] = useState(0);
   const onStale = useCallback(() => reload(true), [reload]);
@@ -98,9 +93,8 @@ export function Room({ code }: { code: string }) {
       net.by === null &&
       (net.cause === 'join' || net.cause === 'release');
     if (blank && getRoom(code)) return;
-    const save = () =>
-      saveRoom({
-        code,
+    const save = () => {
+      const entry = {
         alias: release.alias,
         title: release.title,
         poster: release.poster,
@@ -108,10 +102,12 @@ export function Room({ code }: { code: string }) {
         ordinal: episode.ordinal,
         position: Math.min(24 * 3600, positionAt(session, serverNow())),
         duration: episode.duration,
-        rate: session.rate,
         dub: session.dub,
         at: Date.now(),
-      });
+      };
+      saveRoom({ ...entry, code, rate: session.rate });
+      saveTitle(entry);
+    };
     save();
     const timer = session.paused ? undefined : setInterval(save, SAVE_MS);
     window.addEventListener('pagehide', save);
@@ -244,6 +240,7 @@ export function Room({ code }: { code: string }) {
           </button>
           <div className="topbar-title">
             <h1>{release?.title ?? 'Смотрим вместе'}</h1>
+            {empty && <div className="row-sub">аниме не выбрано</div>}
             {episode && (
               <div className="row-sub">
                 {episodeLabel(episode)}
@@ -274,10 +271,10 @@ export function Room({ code }: { code: string }) {
           <button
             className="btn btn-small btn-tonal rp"
             onClick={() => setSheet('release')}
-            title="Сменить тайтл"
-            aria-label="Сменить тайтл"
+            title={empty ? 'Выбрать аниме' : 'Сменить аниме'}
+            aria-label={empty ? 'Выбрать аниме' : 'Сменить аниме'}
           >
-            {Icon.link}
+            {Icon.search}
           </button>
         </header>
         <Stage
@@ -286,6 +283,8 @@ export function Room({ code }: { code: string }) {
           frameRef={frameRef}
           mediaRef={mediaRef}
           kodikSrc={dub?.url ?? null}
+          empty={empty}
+          onPickTitle={() => setSheet('release')}
           release={release}
           releaseError={releaseError}
           onReloadRelease={() => reload(true)}
@@ -314,7 +313,7 @@ export function Room({ code }: { code: string }) {
             className={`chip tab rp${tab === 'episodes' ? ' active' : ''}`}
             onClick={() => setTab('episodes')}
           >
-            серии
+            {empty ? 'аниме' : 'серии'}
           </button>
           {hasDubs && (
             <button
@@ -332,12 +331,17 @@ export function Room({ code }: { code: string }) {
           <Chat joined={joined} onTyping={setTyping} />
         </div>
         <div className="panel panel-episodes" hidden={tab !== 'episodes'}>
-          {release ? (
+          {empty ? (
+            <TitlePicker onPick={picker.pick} pending={picker.pending} error={picker.error}>
+              <LatestList onPick={picker.pick} pending={picker.pending} />
+            </TitlePicker>
+          ) : release ? (
             <Episodes
               release={release}
               currentId={session?.episodeId ?? null}
               playing={playing}
               visible={tab === 'episodes'}
+              watched={watched}
             />
           ) : (
             <div className="empty">{releaseError ?? <span className="spinner" />}</div>
@@ -349,9 +353,7 @@ export function Room({ code }: { code: string }) {
           </div>
         )}
       </aside>
-      {sheet === 'release' && session && (
-        <ReleaseSheet currentAlias={session.alias} onClose={() => setSheet(null)} />
-      )}
+      {sheet === 'release' && <ReleaseSheet onClose={closeSheet} />}
       {sheet === 'name' && (
         <NameSheet
           current={name}
@@ -359,7 +361,7 @@ export function Room({ code }: { code: string }) {
             setSettings({ name: nick });
             hello(nick);
           }}
-          onClose={() => setSheet(null)}
+          onClose={closeSheet}
         />
       )}
       {toast && (

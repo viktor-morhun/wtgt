@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { formatTime, isPlayable, type Episode, type Release } from '@wtgt/shared';
 import * as cmd from '../commands';
+import { WATCHED } from '../history';
 import { dubLabel, episodeLabel } from './Stage';
 
 /** Список серий как очередь в listen-together: текущая выделена, у неё эквалайзер, пока идёт. */
@@ -9,12 +10,15 @@ export function Episodes({
   currentId,
   playing,
   visible,
+  watched,
 }: {
   release: Release;
   currentId: string | null;
   playing: boolean;
   /** вкладка серий открыта — к текущей серии прокручиваем и при открытии вкладки */
   visible: boolean;
+  /** из истории этого браузера: id серии → просмотренная доля */
+  watched?: Record<string, number>;
 }) {
   const currentRef = useRef<HTMLButtonElement>(null);
 
@@ -28,15 +32,21 @@ export function Episodes({
       {release.episodes.map((e, i) => {
         const current = e.id === currentId;
         const playable = isPlayable(e);
+        const seen = watched?.[e.id] ?? 0;
+        const done = seen >= WATCHED;
         return (
           <li key={e.id} style={{ '--i': Math.min(i, 20) } as React.CSSProperties}>
             <button
               ref={current ? currentRef : undefined}
-              className={`row row-button rp${current ? ' row-current' : ''}`}
+              className={`row row-button rp${current ? ' row-current' : ''}${done && !current ? ' row-watched' : ''}`}
               disabled={!playable}
               onClick={() => !current && cmd.playEpisode(e.id)}
+              title={done ? 'Просмотрена' : undefined}
             >
               <span className="ep-no">
+                {seen > 0.02 && !current && (
+                  <span className="ep-seen" style={{ width: `${Math.min(1, done ? 1 : seen) * 100}%` }} />
+                )}
                 {current ? (
                   <span className={`eq${playing ? ' on' : ''}`}>
                     <i />

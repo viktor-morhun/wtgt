@@ -81,6 +81,12 @@ export const Icon = {
       <path d="M12 19V5M6 11l6-6 6 6" />
     </svg>
   ),
+  search: (
+    <svg viewBox="0 0 24 24" aria-hidden className="stroke">
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="M16 16l4 4" />
+    </svg>
+  ),
   close: (
     <svg viewBox="0 0 24 24" aria-hidden className="stroke">
       <path d="M6 6l12 12M18 6L6 18" />

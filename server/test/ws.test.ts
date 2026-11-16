@@ -441,3 +441,89 @@ describe('страницы', () => {
     expect((await fetch(`${http}/api/nope`)).status).toBe(404);
   });
 });
+
+describe('комната без тайтла и с тайтлом сразу', () => {
+  it('без DEFAULT_RELEASE комната пустая; тайтл выбирают командой release', async () => {
+    const { url, http } = await start(okCatalog, { defaultRelease: null });
+    const { code } = (await (await fetch(`${http}/api/rooms`, { method: 'POST' })).json()) as {
+      code: string;
+    };
+    const a = await connect(url(code));
+    expect(sessionOf(await a.next(state('join')))).toMatchObject({ alias: null, episodeId: null });
+    a.send({ type: 'play' });
+    await sleep(50);
+    expect(a.log.filter(state('play'))).toHaveLength(0);
+    a.send({ type: 'release', input: 'tokyo-revengers' });
+    expect(sessionOf(await a.next(state('release')))).toMatchObject({
+      alias: 'tokyo-revengers',
+      episodeId: release.episodes[0]!.id,
+      paused: true,
+    });
+    a.close();
+  });
+
+  it('пустая пересозданная комната принимает restore', async () => {
+    const { url } = await start(okCatalog, { defaultRelease: null });
+    const a = await connect(url('zzzzzz'));
+    await a.next(state('join'));
+    const ep3 = release.episodes[2]!.id;
+    a.send({ type: 'restore', alias: 'tokyo-revengers', episodeId: ep3, position: 42, rate: 1 });
+    expect(sessionOf(await a.next(state('restore')))).toMatchObject({ episodeId: ep3, position: 42 });
+    a.close();
+  });
+
+  it('POST /api/rooms {alias, episodeId, position} — комната сразу с серии и времени', async () => {
+    const { url, http } = await start(okCatalog, { defaultRelease: null });
+    const ep5 = release.episodes[4]!.id;
+    const res = await fetch(`${http}/api/rooms`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        alias: 'https://anilibria.tv/release/other.html',
+        episodeId: ep5,
+        position: 300,
+      }),
+    });
+    const { code } = (await res.json()) as { code: string };
+    const a = await connect(url(code));
+    expect(sessionOf(await a.next(state('join')))).toMatchObject({
+      alias: 'other',
+      episodeId: ep5,
+      position: 300,
+      paused: true,
+    });
+    a.close();
+  });
+
+  it('POST /api/rooms с неизвестным тайтлом — 404, комната не создаётся', async () => {
+    const { http, app } = await start(okCatalog, { defaultRelease: null });
+    const res = await fetch(`${http}/api/rooms`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ alias: 'nope' }),
+    });
+    expect(res.status).toBe(404);
+    expect(app.rooms.size).toBe(0);
+  });
+});
+
+describe('поиск', () => {
+  it('/api/search и /api/latest отдают карточки поисковика', async () => {
+    const card = {
+      alias: 'tokyo-revengers',
+      title: 'Токийские мстители',
+      poster: null,
+      year: 2021,
+      kind: 'ТВ',
+      episodes: 24,
+      source: 'AniLibria' as const,
+    };
+    const { http } = await start(okCatalog, {
+      finder: { search: async (q) => (q === 'мстители' ? [card] : []), latest: async () => [card] },
+    });
+    expect(await (await fetch(`${http}/api/search?q=${encodeURIComponent('мстители')}`)).json()).toEqual([
+      card,
+    ]);
+    expect(await (await fetch(`${http}/api/latest`)).json()).toEqual([card]);
+  });
+});

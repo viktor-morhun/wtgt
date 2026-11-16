@@ -832,15 +832,14 @@ svg.stroke text {
   }
 }
 
-/* ---------- Главная: ник и «создать комнату» ---------- */
+/* ---------- Главная: ник, «создать комнату», поиск, новое, комнаты, история ---------- */
 .home {
-  max-width: 480px;
+  max-width: 640px;
   min-height: 100dvh;
   margin: 0 auto;
-  padding: 0 16px calc(32px + env(safe-area-inset-bottom));
+  padding: clamp(32px, 12vh, 120px) 16px calc(32px + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
-  justify-content: center;
 }
 .home .hero {
   padding-top: 0;
@@ -852,37 +851,85 @@ svg.stroke text {
   margin-top: 28px;
   animation: rise 0.6s var(--spring-soft) 0.08s both;
 }
-.home-form h3 {
-  margin: 0 4px 10px;
-}
 .home-form .new-room {
   margin-top: 14px;
 }
-.home .rc-meta {
-  white-space: normal;
-}
-
-/* недавние комнаты: постер, тайтл, серия и время, полоска просмотренного */
-.recent {
-  margin-top: 32px;
+.home-browse {
+  margin-top: 28px;
   animation: rise 0.6s var(--spring-soft) 0.16s both;
 }
-.recent h3 {
-  margin: 0 4px 6px;
+.home-tabs {
+  margin-top: 10px;
 }
-.recent .row {
+.chip-count {
+  margin-left: 6px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.55;
+}
+
+/* поиск тайтла: поле, строки с постером; в комнате и в шторке — то же самое */
+.picker-field input {
+  padding-left: 44px;
+}
+.picker-field::before {
+  content: '';
+  position: absolute;
+  left: 17px;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  translate: 0 -60%;
+  border: 2px solid var(--hint);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.picker-field::after {
+  content: '';
+  position: absolute;
+  left: 29px;
+  top: 50%;
+  width: 6px;
+  height: 2px;
+  translate: 0 5px;
+  rotate: 45deg;
+  border-radius: 1px;
+  background: var(--hint);
+  pointer-events: none;
+}
+.search-clear svg {
+  width: 16px;
+  height: 16px;
+}
+.picker > .list,
+.picker > .empty {
+  margin-top: 8px;
+}
+.picker-head {
+  margin: 18px 4px 4px;
+}
+.panel-episodes .picker {
+  padding-top: 4px;
+}
+.titles .row,
+.recent-row {
   gap: 4px;
   padding: 4px;
   margin: 2px -4px;
 }
-.recent .row-tap {
+.titles .row-tap,
+.recent-row .row-tap {
   padding: 6px;
   border-radius: 16px;
 }
-.recent .row-main {
+.titles .row-tap:disabled {
+  cursor: default;
+}
+.titles .row-main,
+.recent-row .row-main {
   gap: 3px;
 }
-.recent-poster {
+.title-poster {
   flex: none;
   width: 44px;
   height: 62px;
@@ -890,6 +937,23 @@ svg.stroke text {
   object-fit: cover;
   background: var(--surface-2);
   filter: grayscale(1);
+  transition: filter 0.4s var(--ease);
+}
+@media (hover: hover) {
+  .row-tap:hover .title-poster,
+  .poster-card:hover img {
+    filter: grayscale(0);
+  }
+}
+.title-poster-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--hint);
+}
+.title-poster-link svg {
+  width: 20px;
+  height: 20px;
 }
 .recent-bar {
   display: block;
@@ -904,9 +968,99 @@ svg.stroke text {
   height: 100%;
   background: var(--text);
 }
-.recent .icon-btn svg {
+.recent-row .icon-btn svg {
   width: 18px;
   height: 18px;
+}
+
+/* «новое» постерами */
+.poster-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 16px 12px;
+  margin-top: 8px;
+}
+.poster-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+  border-radius: 18px;
+  overflow: visible;
+  animation: rise 0.5s var(--spring-soft) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
+}
+.poster-card:disabled {
+  cursor: default;
+}
+.poster-card-img {
+  position: relative;
+  aspect-ratio: 7 / 10;
+  border-radius: 18px;
+  overflow: hidden;
+  background: var(--surface-2);
+  transition: border-radius 0.45s var(--spring);
+}
+.poster-card.is-pressed .poster-card-img {
+  border-radius: 28px;
+}
+.poster-card-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: grayscale(1);
+  transition: filter 0.4s var(--ease);
+}
+.poster-card-busy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+}
+.poster-card-title {
+  margin-top: 4px;
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.poster-card-sub {
+  color: var(--hint);
+  font-size: 12px;
+}
+
+/* пустая комната: «что смотрим?» поверх сцены */
+.pick-cover .btn-wide svg {
+  width: 20px;
+  height: 20px;
+}
+.pick-cover .btn-wide svg.stroke {
+  stroke: var(--bg);
+}
+
+/* серии: сколько просмотрено — полоска внизу номера, досмотренные приглушены */
+.ep-no {
+  position: relative;
+  overflow: hidden;
+}
+.ep-seen {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--text);
+  opacity: 0.8;
+}
+.row-watched .row-title {
+  color: var(--hint);
 }
 
 /* ---------- Шапка комнаты ---------- */

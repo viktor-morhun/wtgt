@@ -18,7 +18,7 @@ export class Rooms {
 
   constructor(
     private readonly catalog: Catalog,
-    private readonly defaultAlias: string,
+    private readonly defaultAlias: string | null,
     { emptyTtlMs = 30 * 60_000, max = 200 }: Options = {},
   ) {
     this.emptyTtlMs = emptyTtlMs;

@@ -1,66 +1,63 @@
-import { useEffect, useState } from 'react';
-import { parseAlias } from '@wtgt/shared';
+import { useCallback, useEffect, useState } from 'react';
 import { send, useNet } from '../net';
+import { LatestList, TitlePicker } from './TitlePicker';
 
-/** Шторка «сменить тайтл»: ссылка на релиз AniLibria или YummyAnime, или алиас (spec anilibria-source). */
-export function ReleaseSheet({ currentAlias, onClose }: { currentAlias: string; onClose(): void }) {
+/**
+ * Сменить тайтл комнаты: отправляем алиас и ждём ответа сервера.
+ * pending — алиас, который открывается; done — сервер сменил тайтл.
+ */
+export function usePickRelease(onDone?: () => void) {
   const net = useNet();
-  const [input, setInput] = useState('');
-  const [sentAt, setSentAt] = useState<number | null>(null);
-  const [sentVersion, setSentVersion] = useState(0);
+  const [sent, setSent] = useState<{ alias: string; at: number; version: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // сервер ответил: ошибка — показываем, сменился релиз — закрываемся
+  // сервер ответил: ошибка — показываем, сменился релиз — готово
   useEffect(() => {
-    if (sentAt && net.error && net.error.at >= sentAt) {
+    if (sent && net.error && net.error.at >= sent.at) {
       setError(net.error.message);
-      setSentAt(null);
+      setSent(null);
     }
-  }, [net.error, sentAt]);
+  }, [net.error, sent]);
   useEffect(() => {
-    if (sentAt && net.cause === 'release' && (net.session?.version ?? 0) > sentVersion) onClose();
-  }, [net.session?.version, net.cause, sentAt, sentVersion, onClose]);
+    if (sent && net.cause === 'release' && (net.session?.version ?? 0) > sent.version) {
+      setSent(null);
+      onDone?.();
+    }
+  }, [net.session?.version, net.cause, sent, onDone]);
+
+  const pick = useCallback(
+    (alias: string) => {
+      const s = net.session;
+      if (sent) return;
+      if (alias === s?.alias) return onDone?.();
+      setError(null);
+      if (send({ type: 'release', input: alias })) {
+        setSent({ alias, at: Date.now(), version: s?.version ?? 0 });
+      } else setError('Нет связи с сервером');
+    },
+    [net.session, sent, onDone],
+  );
+
+  return { pick, pending: sent?.alias ?? null, error };
+}
+
+/** Шторка «сменить тайтл»: поиск по названию или ссылка на AniLibria / YummyAnime (spec anilibria-source). */
+export function ReleaseSheet({ onClose }: { onClose(): void }) {
+  const { pick, pending, error } = usePickRelease(onClose);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const submit = () => {
-    const alias = parseAlias(input);
-    if (!alias) return setError('Это не похоже на ссылку AniLibria или YummyAnime');
-    if (alias === currentAlias) return onClose();
-    setError(null);
-    if (send({ type: 'release', input: alias })) {
-      setSentVersion(net.session?.version ?? 0);
-      setSentAt(Date.now());
-    } else setError('Нет связи с сервером');
-  };
-
   return (
     <div className="sheet-backdrop" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <form
-        className="sheet release-sheet"
-        onSubmit={(e) => {
-          e.preventDefault();
-          submit();
-        }}
-      >
-        <div className="search-field">
-          <input
-            autoFocus
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ссылка на AniLibria или YummyAnime"
-            inputMode="url"
-            aria-label="Ссылка на релиз AniLibria или YummyAnime"
-          />
-        </div>
-        {error && <div className="release-error">{error}</div>}
-        <button className="btn btn-wide rp" disabled={!input.trim() || sentAt !== null}>
-          {sentAt !== null ? <span className="spinner" /> : 'Смотреть'}
-        </button>
-      </form>
+      <div className="sheet release-sheet">
+        <TitlePicker onPick={pick} pending={pending} error={error} autoFocus>
+          <LatestList onPick={pick} pending={pending} />
+        </TitlePicker>
+      </div>
     </div>
   );
 }

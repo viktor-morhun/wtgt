@@ -1,0 +1,82 @@
+import { describe, expect, it } from 'vitest';
+import { createFinder, libriaCards, yummyCards } from '../src/search';
+
+const libria = [
+  {
+    alias: 'tokyo-revengers',
+    year: 2021,
+    name: { main: 'Токийские мстители', english: 'Tokyo Revengers' },
+    type: { value: 'TV', description: 'ТВ' },
+    episodes_total: 24,
+    poster: { src: '/p.jpg', optimized: { src: '/p.webp', preview: '/pp.webp' } },
+  },
+  { broken: true },
+];
+const yummy = {
+  response: [
+    {
+      anime_url: 'naruto-tv-1',
+      title: 'Наруто',
+      year: 2002,
+      type: { shortname: 'ТВ', name: 'Сериал' },
+      poster: { small: '//static.yani.tv/s.webp', medium: '//static.yani.tv/m.webp' },
+    },
+  ],
+};
+
+describe('карточки тайтлов', () => {
+  it('AniLibria: алиас, название, постер с адресом сайта; битые записи пропускаются', () => {
+    expect(libriaCards(libria)).toEqual([
+      {
+        alias: 'tokyo-revengers',
+        title: 'Токийские мстители',
+        poster: 'https://anilibria.top/pp.webp',
+        year: 2021,
+        kind: 'ТВ',
+        episodes: 24,
+        source: 'AniLibria',
+      },
+    ]);
+  });
+
+  it('YummyAnime: алиас с приставкой, постер по https', () => {
+    expect(yummyCards(yummy)).toEqual([
+      {
+        alias: 'yummy:naruto-tv-1',
+        title: 'Наруто',
+        poster: 'https://static.yani.tv/m.webp',
+        year: 2002,
+        kind: 'ТВ',
+        episodes: null,
+        source: 'YummyAnime',
+      },
+    ]);
+  });
+
+  it('поиск: AniLibria первой; один источник лёг — второй всё равно отвечает; ответ кэшируется', async () => {
+    let calls = 0;
+    const fetch = (async (url: string) => {
+      calls++;
+      if (url.includes('anilibria')) return new Response(JSON.stringify(libria));
+      if (url.includes('yani')) return new Response('down', { status: 502 });
+      throw new Error(url);
+    }) as typeof globalThis.fetch;
+    const finder = createFinder({ fetch });
+    expect((await finder.search('Мстители')).map((c) => c.alias)).toEqual(['tokyo-revengers']);
+    await finder.search('  мстители ');
+    expect(calls).toBe(2);
+    expect(await finder.search('a')).toEqual([]);
+  });
+
+  it('поиск: оба источника легли — ошибка, не кэшируется', async () => {
+    let ok = false;
+    const fetch = (async (url: string) =>
+      ok && url.includes('yani')
+        ? new Response(JSON.stringify(yummy))
+        : new Response('down', { status: 502 })) as typeof globalThis.fetch;
+    const finder = createFinder({ fetch });
+    await expect(finder.search('наруто')).rejects.toThrow('Поиск не отвечает');
+    ok = true;
+    expect((await finder.search('наруто')).map((c) => c.alias)).toEqual(['yummy:naruto-tv-1']);
+  });
+});
