@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { isYummy, QUALITIES, YUMMY_PREFIX, type Episode, type Release } from '@wtgt/shared';
+import { isYummy, QUALITIES, YUMMY_PREFIX, type Episode, type Release, type Skip } from '@wtgt/shared';
 import { normalizeYummy, yummyUrl } from './yummy';
 
 export const ANILIBRIA_ORIGIN = 'https://anilibria.top';
@@ -14,6 +14,7 @@ export class CatalogError extends Error {
 }
 
 const url = z.string().url().nullish();
+const span = z.object({ start: z.number().nullish(), stop: z.number().nullish() }).nullish();
 const rawRelease = z.object({
   alias: z.string(),
   name: z.object({ main: z.string().nullish(), english: z.string().nullish() }),
@@ -30,6 +31,8 @@ const rawRelease = z.object({
       hls_480: url,
       hls_720: url,
       hls_1080: url,
+      opening: span,
+      ending: span,
     }),
   ),
 });
@@ -46,7 +49,20 @@ export function normalizeRelease(raw: unknown): Release {
         const src = e[`hls_${q}`];
         if (src) hls[q] = src;
       }
-      return { id: e.id, ordinal: e.ordinal, name: e.name || null, duration: e.duration ?? 0, hls };
+      const skips: Skip[] = [];
+      for (const kind of ['opening', 'ending'] as const) {
+        const s = e[kind];
+        if (s?.start != null && s.stop != null && s.stop > s.start)
+          skips.push({ kind, from: s.start, to: s.stop });
+      }
+      return {
+        id: e.id,
+        ordinal: e.ordinal,
+        name: e.name || null,
+        duration: e.duration ?? 0,
+        hls,
+        ...(skips.length ? { skips } : {}),
+      };
     });
   return {
     alias: r.alias,

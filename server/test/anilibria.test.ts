@@ -22,6 +22,16 @@ describe('normalizeRelease', () => {
     raw.episodes[1].hls_480 = raw.episodes[1].hls_720 = raw.episodes[1].hls_1080 = null;
     expect(normalizeRelease(raw).episodes[1]!.hls).toEqual({});
   });
+
+  it('опенинг и эндинг — только размеченные, пустые и битые отрезки пропускаются', () => {
+    const raw = structuredClone(fixture);
+    raw.episodes[0].opening = { start: 17, stop: 106 };
+    raw.episodes[0].ending = { start: null, stop: null };
+    raw.episodes[1].opening = { start: 50, stop: 40 };
+    const [first, second] = normalizeRelease(raw).episodes;
+    expect(first!.skips).toEqual([{ kind: 'opening', from: 17, to: 106 }]);
+    expect(second!.skips).toBeUndefined();
+  });
 });
 
 const json = (body: unknown, status = 200) =>

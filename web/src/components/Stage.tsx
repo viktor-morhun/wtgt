@@ -201,6 +201,9 @@ export function Stage(props: Props) {
         </div>
       )}
       {!net.online && <div className="stage-status stage-offline">нет связи</div>}
+      {joined && episode && !overlay && !kodikSrc && (
+        <SkipChip episode={episode} time={clock.time} duration={duration} />
+      )}
       {overlay}
       {joined && release && episode && !playback.error && !kodikSrc && (
         <div className="vctl" onPointerDown={wake}>
@@ -318,6 +321,22 @@ export function Stage(props: Props) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Идёт опенинг или эндинг — чип «пропустить» в углу кадра, виден и при спрятанной панели; перематывает всех. */
+function SkipChip({ episode, time, duration }: { episode: Episode; time: number; duration: number }) {
+  // последнюю секунду отрезка не предлагаем: прыжок был бы незаметен
+  const skip = episode.skips?.find((s) => time >= s.from && time < s.to - 1);
+  if (!skip) return null;
+  return (
+    <button
+      key={`${skip.kind}${skip.from}`}
+      className="btn btn-small skip-chip rp"
+      onClick={() => cmd.seekTo(skip.to, duration)}
+    >
+      {skip.kind === 'opening' ? 'Пропустить опенинг' : 'Пропустить эндинг'}
+    </button>
   );
 }
 

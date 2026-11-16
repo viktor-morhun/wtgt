@@ -20,7 +20,11 @@ export type Episode = {
   hls: Partial<Record<Quality, string>>;
   /** озвучки в плеере Kodik (YummyAnime); популярные первыми */
   dubs?: Dub[];
+  /** опенинг и эндинг, секунды (AniLibria размечает не все серии) */
+  skips?: Skip[];
 };
+
+export type Skip = { kind: 'opening' | 'ending'; from: number; to: number };
 
 export const isPlayable = (e: Episode): boolean => Object.keys(e.hls).length > 0 || !!e.dubs?.length;
 
