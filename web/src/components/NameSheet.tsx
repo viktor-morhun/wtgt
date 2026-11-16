@@ -6,10 +6,15 @@ export function NameSheet({
   current,
   onSave,
   onClose,
+  title,
+  action = 'Сохранить',
 }: {
   current: string;
   onSave(name: string): void;
   onClose(): void;
+  /** подпись над полем — когда ник спрашиваем впервые */
+  title?: string;
+  action?: string;
 }) {
   const [name, setName] = useState(current);
   const valid = name.trim().length > 0;
@@ -31,6 +36,7 @@ export function NameSheet({
           onClose();
         }}
       >
+        {title && <div className="sheet-title">{title}</div>}
         <div className="search-field">
           <input
             autoFocus
@@ -42,7 +48,7 @@ export function NameSheet({
           />
         </div>
         <button className="btn btn-wide rp" disabled={!valid}>
-          Сохранить
+          {action}
         </button>
       </form>
     </div>

@@ -51,7 +51,19 @@ export type TitleCard = {
   kind: string | null;
   episodes: number | null;
   source: 'AniLibria' | 'YummyAnime';
+  /** для баннера на главной */
+  description?: string;
+  genres?: string[];
+  /** «Сегодня выходят»: номер серии, которая выйдет */
+  next?: number;
 };
+
+/** Подборка на главной: «Новое», «Онгоинги», «Лучшее»… */
+export type Shelf = { key: string; title: string; cards: TitleCard[] };
+export type Genre = { id: number; name: string };
+
+/** GET /api/home: баннер, подборки и жанры — одним запросом. */
+export type HomeFeed = { banner: TitleCard[]; shelves: Shelf[]; genres: Genre[] };
 
 export const rateSchema = z.union(RATES.map((r) => z.literal(r)) as [z.ZodLiteral<Rate>, z.ZodLiteral<Rate>]);
 const position = z

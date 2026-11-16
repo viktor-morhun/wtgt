@@ -110,6 +110,34 @@ describe('карточки тайтлов', () => {
     expect((await finder.search('наруто')).map((c) => c.source)).toEqual(['AniLibria', 'YummyAnime']);
   });
 
+  it('главная: подборки по отдельности, баннер — новинки с описанием, расписание с номером серии', async () => {
+    const withText = {
+      ...libria[0],
+      description: '  Такемичи возвращается в прошлое.  ',
+      genres: [{ name: 'Экшен' }],
+    };
+    const fetch = (async (url: string) => {
+      if (url.includes('schedule')) {
+        return new Response(
+          JSON.stringify({ today: [{ release: libria[0], next_release_episode_number: 7 }] }),
+        );
+      }
+      if (url.includes('latest')) return new Response(JSON.stringify([withText, libria[0]]));
+      if (url.includes('references/genres')) return new Response(JSON.stringify([{ id: 14, name: 'Экшен' }]));
+      if (url.includes('MOVIE')) return new Response('down', { status: 502 });
+      return new Response(JSON.stringify({ data: [libria[0]] }));
+    }) as typeof globalThis.fetch;
+    const feed = await createFinder({ fetch }).home();
+    expect(feed.shelves.map((s) => s.key)).toEqual(['today', 'fresh', 'ongoing', 'top']);
+    expect(feed.shelves[0]!.cards[0]!.next).toBe(7);
+    expect(feed.banner).toHaveLength(1);
+    expect(feed.banner[0]).toMatchObject({
+      description: 'Такемичи возвращается в прошлое.',
+      genres: ['Экшен'],
+    });
+    expect(feed.genres).toEqual([{ id: 14, name: 'Экшен' }]);
+  });
+
   it('поиск: оба источника легли — ошибка, не кэшируется', async () => {
     let ok = false;
     const fetch = (async (url: string) =>

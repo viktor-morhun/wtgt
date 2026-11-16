@@ -13,9 +13,101 @@ const SOURCES: TitleCard['source'][] = ['AniLibria', 'YummyAnime'];
 /** Похоже на ссылку или алиас с приставкой, а не на название. */
 const looksLikeLink = (s: string) => /[./:]/.test(s.trim());
 
+/** Поле поиска: название или ссылка; Enter — первый результат. */
+export function PickerField({
+  query,
+  onQuery,
+  onSubmit,
+  autoFocus,
+}: {
+  query: string;
+  onQuery(q: string): void;
+  onSubmit(): void;
+  autoFocus?: boolean;
+}) {
+  return (
+    <form
+      className="search-field picker-field"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      <input
+        value={query}
+        onChange={(e) => onQuery(e.target.value)}
+        placeholder="Найти аниме или вставить ссылку"
+        aria-label="Название аниме или ссылка на AniLibria или YummyAnime"
+        enterKeyHint="search"
+        autoFocus={autoFocus}
+      />
+      {query.trim() && (
+        <button type="button" className="search-clear rp" onClick={() => onQuery('')} aria-label="Очистить">
+          {Icon.close}
+        </button>
+      )}
+    </form>
+  );
+}
+
+/** Поиск по запросу: ссылка → «открыть по ссылке», название → AniLibria, ниже — YummyAnime. */
+export function useTitleSearch(query: string) {
+  const link = looksLikeLink(query) ? parseAlias(query) : null;
+  const search = useSearch(looksLikeLink(query) ? '' : query);
+  return { link, search, first: link ?? search.cards?.[0]?.alias ?? null };
+}
+
+export function PickerResults({
+  query,
+  onPick,
+  pending,
+}: {
+  query: string;
+  onPick(alias: string): void;
+  pending?: string | null;
+}) {
+  const { link, search } = useTitleSearch(query);
+  if (looksLikeLink(query)) {
+    return link ? (
+      <ul className="list">
+        <li className="row">
+          <button className="row-tap rp" onClick={() => onPick(link)}>
+            <span className="title-poster title-poster-link">{Icon.link}</span>
+            <span className="row-main">
+              <span className="row-title">Открыть по ссылке</span>
+              <span className="row-sub">
+                {isYummy(link) ? 'YummyAnime' : 'AniLibria'} · {link}
+              </span>
+            </span>
+            {pending === link && <span className="spinner" />}
+          </button>
+        </li>
+      </ul>
+    ) : (
+      <div className="empty hint">Это не похоже на ссылку AniLibria или YummyAnime</div>
+    );
+  }
+  if (query.trim().length < 2) return null;
+  if (!search.cards) return <div className="empty hint">{search.error ?? <span className="spinner" />}</div>;
+  if (!search.cards.length) return <div className="empty hint">Ничего не нашлось</div>;
+  return (
+    <>
+      {SOURCES.map((source) => {
+        const cards = search.cards!.filter((c) => c.source === source);
+        return cards.length ? (
+          <Fragment key={source}>
+            <h3 className="picker-head">{source === 'AniLibria' ? 'AniLibria' : 'ещё на YummyAnime'}</h3>
+            <TitleList cards={cards} onPick={onPick} pending={pending} />
+          </Fragment>
+        ) : null;
+      })}
+    </>
+  );
+}
+
 /**
  * Поиск тайтла по названию в AniLibria и YummyAnime или по ссылке на релиз.
- * Пока поле пустое, вместо результатов — children (на главной — вкладки, в комнате — «новое»).
+ * Пока поле пустое, вместо результатов — children (в комнате — «новое»).
  */
 export function TitlePicker({
   onPick,
@@ -32,78 +124,17 @@ export function TitlePicker({
   children?: ReactNode;
 }) {
   const [query, setQuery] = useState('');
-  const link = looksLikeLink(query) ? parseAlias(query) : null;
-  const search = useSearch(looksLikeLink(query) ? '' : query);
-  const typing = query.trim().length > 0;
-
+  const { first } = useTitleSearch(query);
   return (
     <div className="picker">
-      <form
-        className="search-field picker-field"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const first = link ?? search.cards?.[0]?.alias;
-          if (first) onPick(first);
-        }}
-      >
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Найти аниме или вставить ссылку"
-          aria-label="Название аниме или ссылка на AniLibria или YummyAnime"
-          enterKeyHint="search"
-          autoFocus={autoFocus}
-        />
-        {typing && (
-          <button
-            type="button"
-            className="search-clear rp"
-            onClick={() => setQuery('')}
-            aria-label="Очистить"
-          >
-            {Icon.close}
-          </button>
-        )}
-      </form>
+      <PickerField
+        query={query}
+        onQuery={setQuery}
+        onSubmit={() => first && onPick(first)}
+        autoFocus={autoFocus}
+      />
       {error && <div className="release-error">{error}</div>}
-      {!typing ? (
-        children
-      ) : looksLikeLink(query) ? (
-        link ? (
-          <ul className="list">
-            <li className="row">
-              <button className="row-tap rp" onClick={() => onPick(link)}>
-                <span className="title-poster title-poster-link">{Icon.link}</span>
-                <span className="row-main">
-                  <span className="row-title">Открыть по ссылке</span>
-                  <span className="row-sub">
-                    {isYummy(link) ? 'YummyAnime' : 'AniLibria'} · {link}
-                  </span>
-                </span>
-                {pending === link && <span className="spinner" />}
-              </button>
-            </li>
-          </ul>
-        ) : (
-          <div className="empty hint">Это не похоже на ссылку AniLibria или YummyAnime</div>
-        )
-      ) : query.trim().length < 2 ? null : search.cards ? (
-        search.cards.length ? (
-          SOURCES.map((source) => {
-            const cards = search.cards!.filter((c) => c.source === source);
-            return cards.length ? (
-              <Fragment key={source}>
-                <h3 className="picker-head">{source === 'AniLibria' ? 'AniLibria' : 'ещё на YummyAnime'}</h3>
-                <TitleList cards={cards} onPick={onPick} pending={pending} />
-              </Fragment>
-            ) : null;
-          })
-        ) : (
-          <div className="empty hint">Ничего не нашлось</div>
-        )
-      ) : (
-        <div className="empty hint">{search.error ?? <span className="spinner" />}</div>
-      )}
+      {query.trim() ? <PickerResults query={query} onPick={onPick} pending={pending} /> : children}
     </div>
   );
 }

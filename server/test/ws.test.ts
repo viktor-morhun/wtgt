@@ -553,6 +553,12 @@ describe('поиск', () => {
         search: async (q) => (q === 'мстители' ? [card] : []),
         latest: async () => [card],
         random: async () => card,
+        home: async () => ({
+          banner: [card],
+          shelves: [{ key: 'top', title: 'Лучшее', cards: [card] }],
+          genres: [],
+        }),
+        genre: async (id, page) => ({ cards: id === 14 && page === 2 ? [card] : [], more: false }),
       },
     });
     expect(await (await fetch(`${http}/api/search?q=${encodeURIComponent('мстители')}`)).json()).toEqual([
@@ -560,6 +566,11 @@ describe('поиск', () => {
     ]);
     expect(await (await fetch(`${http}/api/latest`)).json()).toEqual([card]);
     expect(await (await fetch(`${http}/api/random`)).json()).toEqual(card);
+    expect(((await (await fetch(`${http}/api/home`)).json()) as { banner: unknown[] }).banner).toEqual([
+      card,
+    ]);
+    expect(await (await fetch(`${http}/api/genre/14?page=2`)).json()).toEqual({ cards: [card], more: false });
+    expect((await fetch(`${http}/api/genre/nope`)).status).toBe(404);
   });
 });
 

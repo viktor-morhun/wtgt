@@ -80,6 +80,28 @@ export async function buildApp({
         return fail(reply, e);
       }
     });
+    app.get('/api/home', async (_req, reply) => {
+      try {
+        return await finder.home();
+      } catch (e) {
+        return fail(reply, e);
+      }
+    });
+    app.get<{ Params: { id: string }; Querystring: { page?: string } }>(
+      '/api/genre/:id',
+      async (req, reply) => {
+        const id = Number(req.params.id);
+        const page = Math.min(100, Math.max(1, Number(req.query.page) || 1));
+        if (!Number.isInteger(id) || id <= 0) {
+          return reply.code(404).send({ code: 'not_found', message: 'Нет такого жанра' });
+        }
+        try {
+          return await finder.genre(id, page);
+        } catch (e) {
+          return fail(reply, e);
+        }
+      },
+    );
     app.get('/api/random', async (_req, reply) => {
       try {
         return await finder.random();

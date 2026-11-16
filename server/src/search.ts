@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { YUMMY_PREFIX, type TitleCard } from '@wtgt/shared';
+import { YUMMY_PREFIX, type Genre, type HomeFeed, type Shelf, type TitleCard } from '@wtgt/shared';
 import { ANILIBRIA_ORIGIN, CatalogError } from './anilibria';
 import { YUMMY_API } from './yummy';
 
@@ -9,6 +9,10 @@ export type Finder = {
   latest(): Promise<TitleCard[]>;
   /** случайный тайтл AniLibria, у которого уже есть серии */
   random(): Promise<TitleCard>;
+  /** главная: баннер, подборки AniLibria и жанры */
+  home(): Promise<HomeFeed>;
+  /** тайтлы жанра, лучшие первыми */
+  genre(id: number, page: number): Promise<{ cards: TitleCard[]; more: boolean }>;
 };
 
 /** Столько результатов берём у каждого источника. */
@@ -16,6 +20,12 @@ const PER_SOURCE = 12;
 const LATEST = 18;
 /** Столько случайных берём за раз: анонсы без серий отсеиваются. */
 const RANDOM_BATCH = 10;
+/** Столько тайтлов в подборке на главной и на странице жанра. */
+const SHELF = 18;
+const GENRE_PAGE = 30;
+/** Столько новинок листает баннер. */
+const BANNER = 5;
+const DESCRIPTION_MAX = 400;
 
 const rawLibria = z.object({
   alias: z.string(),
@@ -29,6 +39,8 @@ const rawLibria = z.object({
       optimized: z.object({ src: z.string().nullish(), preview: z.string().nullish() }).nullish(),
     })
     .nullish(),
+  description: z.string().nullish(),
+  genres: z.array(z.object({ name: z.string() })).nullish(),
 });
 
 const rawYummy = z.object({
@@ -65,9 +77,27 @@ export function libriaCards(raw: unknown): TitleCard[] {
       kind: r.type?.description ?? null,
       episodes: r.episodes_total || null,
       source: 'AniLibria',
+      ...(r.description ? { description: r.description.trim().slice(0, DESCRIPTION_MAX) } : {}),
+      ...(r.genres?.length ? { genres: r.genres.map((g) => g.name) } : {}),
     };
   });
 }
+
+/** Расписание AniLibria на сегодня: тайтл и номер серии, которая выйдет. */
+export function scheduleCards(raw: unknown): TitleCard[] {
+  const today = (raw as { today?: unknown } | null)?.today;
+  const items = each(
+    z.object({ release: z.unknown(), next_release_episode_number: z.number().nullish() }),
+    today,
+  );
+  return items.flatMap((x) => {
+    const [card] = libriaCards([x.release]);
+    if (!card) return [];
+    return [x.next_release_episode_number ? { ...card, next: x.next_release_episode_number } : card];
+  });
+}
+
+const rawGenre = z.object({ id: z.number(), name: z.string() });
 
 export function yummyCards(raw: unknown): TitleCard[] {
   const list = (raw as { response?: unknown } | null)?.response;
@@ -102,7 +132,7 @@ export function createFinder({
   maxEntries = 300,
   partialTtlMs = 30_000,
 }: Options = {}): Finder {
-  const cache = new Map<string, { at: number; value: Promise<TitleCard[]> }>();
+  const cache = new Map<string, { at: number; value: Promise<unknown> }>();
 
   async function json(url: string): Promise<unknown> {
     const res = await doFetch(url, {
@@ -113,9 +143,9 @@ export function createFinder({
     return res.json();
   }
 
-  function cached(key: string, load: () => Promise<TitleCard[]>): Promise<TitleCard[]> {
+  function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+    if (hit && Date.now() - hit.at < ttlMs) return hit.value as Promise<T>;
     const value = load();
     cache.set(key, { at: Date.now(), value });
     // неудачный ответ не кэшируем
@@ -123,6 +153,14 @@ export function createFinder({
     while (cache.size > maxEntries) cache.delete(cache.keys().next().value!);
     return value;
   }
+
+  /** Каталог AniLibria с фильтрами: f[sorting], f[types], f[genres], f[publish_statuses]. */
+  const catalogUrl = (filters: Record<string, string>, limit = SHELF, page = 1) => {
+    const q = new URLSearchParams({ limit: String(limit), page: String(page), ...filters });
+    return `${ANILIBRIA_ORIGIN}/api/v1/anime/catalog/releases?${q}`;
+  };
+  const catalog = async (filters: Record<string, string>) =>
+    libriaCards(((await json(catalogUrl(filters))) as { data?: unknown } | null)?.data);
 
   /** Убрать ответ из кэша через ms (если его не успели заменить). */
   function forget(key: string, ms: number): void {
@@ -168,6 +206,53 @@ export function createFinder({
       const card = cards.find((c) => c.episodes);
       if (!card) throw new CatalogError('unavailable', 'Не повезло — попробуй ещё раз');
       return card;
+    },
+    home() {
+      return cached('home', async (): Promise<HomeFeed> => {
+        // каждая подборка сама по себе: не ответила одна — остальные на месте, а ответ ненадолго
+        let partial = false;
+        const shelf = async (
+          key: string,
+          title: string,
+          load: () => Promise<TitleCard[]>,
+        ): Promise<Shelf> => ({
+          key,
+          title,
+          cards: await load().catch(() => ((partial = true), [])),
+        });
+        const [today, fresh, ongoing, top, movies, genres] = await Promise.all([
+          shelf('today', 'Сегодня выходят', async () =>
+            scheduleCards(await json(`${ANILIBRIA_ORIGIN}/api/v1/anime/schedule/now`)),
+          ),
+          shelf('fresh', 'Новые серии', async () =>
+            libriaCards(await json(`${ANILIBRIA_ORIGIN}/api/v1/anime/releases/latest?limit=${SHELF}`)),
+          ),
+          shelf('ongoing', 'Онгоинги', () => catalog({ 'f[publish_statuses]': 'IS_ONGOING' })),
+          shelf('top', 'Лучшее', () => catalog({ 'f[sorting]': 'RATING_DESC' })),
+          shelf('movies', 'Фильмы', () => catalog({ 'f[types]': 'MOVIE', 'f[sorting]': 'RATING_DESC' })),
+          json(`${ANILIBRIA_ORIGIN}/api/v1/anime/catalog/references/genres`)
+            .then((raw) => each(rawGenre, raw))
+            .catch((): Genre[] => []),
+        ]);
+        const shelves = [today, fresh, ongoing, top, movies].filter((x) => x.cards.length);
+        if (!shelves.length) throw new CatalogError('unavailable', 'AniLibria не отвечает');
+        if (partial) forget('home', partialTtlMs);
+        // баннер — новинки с описанием
+        const banner = fresh.cards.filter((c) => c.description && c.poster).slice(0, BANNER);
+        return { banner, shelves, genres: genres.map(({ id, name }) => ({ id, name })) };
+      });
+    },
+    genre(id, page) {
+      return cached(`g:${id}:${page}`, async () => {
+        try {
+          const raw = (await json(
+            catalogUrl({ 'f[genres]': String(id), 'f[sorting]': 'RATING_DESC' }, GENRE_PAGE, page),
+          )) as { data?: unknown; meta?: { pagination?: { total_pages?: number } } };
+          return { cards: libriaCards(raw.data), more: page < (raw.meta?.pagination?.total_pages ?? 0) };
+        } catch {
+          throw new CatalogError('unavailable', 'AniLibria не отвечает');
+        }
+      });
     },
     latest() {
       return cached('latest', async () => {
