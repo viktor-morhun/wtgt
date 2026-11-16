@@ -69,6 +69,7 @@ export function Stage(props: Props) {
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const clickTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastTap = useRef(0);
+  const lastPointer = useRef('mouse');
   const seekStreak = useRef<{ side: -1 | 1; at: number; total: number } | null>(null);
   const [seekHint, setSeekHint] = useState<{ side: -1 | 1; total: number; key: number } | null>(null);
   const playing = !!session && !session.paused;
@@ -105,6 +106,7 @@ export function Stage(props: Props) {
   const duration = clock.duration;
 
   const onSurface = (e: React.PointerEvent) => {
+    lastPointer.current = e.pointerType;
     if (e.pointerType === 'mouse') {
       clearTimeout(clickTimer.current);
       clickTimer.current = setTimeout(() => cmd.togglePlay(mediaRef.current), CLICK_DELAY_MS);
@@ -119,6 +121,7 @@ export function Stage(props: Props) {
     const more = streak && streak.side === side && now - streak.at < SEEK_STREAK_MS;
     if (more || now - lastTap.current < DOUBLE_TAP_MS) {
       lastTap.current = 0;
+      clearTimeout(clickTimer.current);
       cmd.seekBy(SEEK_STEP_S * side, mediaRef.current, duration);
       const total = (more ? streak.total : 0) + SEEK_STEP_S;
       seekStreak.current = { side, at: now, total };
@@ -130,7 +133,11 @@ export function Stage(props: Props) {
     if (shown && playing) {
       clearTimeout(idleTimer.current);
       setActive(false);
-    } else wake();
+      return;
+    }
+    // панель показываем, только если второго тапа не будет: иначе он попал бы в её кнопку под пальцем
+    clearTimeout(clickTimer.current);
+    clickTimer.current = setTimeout(wake, DOUBLE_TAP_MS);
   };
 
   let overlay: ReactNode = null;
@@ -202,6 +209,8 @@ export function Stage(props: Props) {
           className="stage-hit"
           onPointerUp={onSurface}
           onDoubleClick={() => {
+            // двойной клик мышью — полный экран; двойной тап пальцем — перемотка (в onSurface)
+            if (lastPointer.current !== 'mouse') return;
             clearTimeout(clickTimer.current);
             cmd.toggleFullscreen(stageRef.current, mediaRef.current);
           }}
