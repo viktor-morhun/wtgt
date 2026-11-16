@@ -424,6 +424,45 @@
   animation: rise 0.6s var(--spring-soft) 0.06s both;
 }
 
+/* двойной тап сбоку — ∓10 с: полукруг у края кадра с подписью */
+.seek-hint {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 38%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  animation: seek-hint 0.7s var(--ease) forwards;
+}
+.seek-hint-left {
+  left: 0;
+  border-radius: 0 50% 50% 0 / 0 50% 50% 0;
+}
+.seek-hint-right {
+  right: 0;
+  border-radius: 50% 0 0 50% / 50% 0 0 50%;
+}
+@keyframes seek-hint {
+  0% {
+    opacity: 0;
+  }
+  15%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* «пропустить опенинг»: над панелью справа, виден и когда панель спрятана */
 .skip-chip {
   position: absolute;

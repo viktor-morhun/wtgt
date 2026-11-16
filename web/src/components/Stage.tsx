@@ -25,6 +25,9 @@ const IDLE_MS = 3_000;
 const OSD_MS = 1_500;
 const CLICK_DELAY_MS = 220;
 const DOUBLE_TAP_MS = 300;
+/** После двойного тапа каждый тап в ту же сторону в течение этого времени — ещё шаг. */
+const SEEK_STREAK_MS = 700;
+const SEEK_STEP_S = 10;
 
 export const episodeLabel = (e: Episode) => `Серия ${e.ordinal}`;
 
@@ -66,6 +69,8 @@ export function Stage(props: Props) {
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const clickTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastTap = useRef(0);
+  const seekStreak = useRef<{ side: -1 | 1; at: number; total: number } | null>(null);
+  const [seekHint, setSeekHint] = useState<{ side: -1 | 1; total: number; key: number } | null>(null);
   const playing = !!session && !session.paused;
 
   // громкость — своя у каждого зрителя
@@ -105,13 +110,22 @@ export function Stage(props: Props) {
       clickTimer.current = setTimeout(() => cmd.togglePlay(mediaRef.current), CLICK_DELAY_MS);
       return;
     }
-    // палец: тап — показать или спрятать панель, двойной тап — полный экран
+    // палец: тап — показать или спрятать панель; двойной тап слева/справа — ∓10 с,
+    // следом ещё тапы в ту же сторону — ещё по 10 с (полный экран — кнопкой)
     const now = performance.now();
-    if (now - lastTap.current < DOUBLE_TAP_MS) {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const side: -1 | 1 = e.clientX - rect.left < rect.width / 2 ? -1 : 1;
+    const streak = seekStreak.current;
+    const more = streak && streak.side === side && now - streak.at < SEEK_STREAK_MS;
+    if (more || now - lastTap.current < DOUBLE_TAP_MS) {
       lastTap.current = 0;
-      cmd.toggleFullscreen(stageRef.current, mediaRef.current);
+      cmd.seekBy(SEEK_STEP_S * side, mediaRef.current, duration);
+      const total = (more ? streak.total : 0) + SEEK_STEP_S;
+      seekStreak.current = { side, at: now, total };
+      setSeekHint({ side, total, key: now });
       return;
     }
+    seekStreak.current = null;
     lastTap.current = now;
     if (shown && playing) {
       clearTimeout(idleTimer.current);
@@ -194,6 +208,16 @@ export function Stage(props: Props) {
         />
       )}
       <Osd session={session} release={release} />
+      {seekHint && (
+        <div
+          key={seekHint.key}
+          className={`seek-hint ${seekHint.side < 0 ? 'seek-hint-left' : 'seek-hint-right'}`}
+          onAnimationEnd={() => setSeekHint(null)}
+        >
+          {seekHint.side < 0 ? '−' : '+'}
+          {seekHint.total} с
+        </div>
+      )}
       {fullscreen && joined && <ChatOverlay />}
       {(playback.catchingUp || clock.waiting) && joined && !overlay && (
         <div className="stage-status">
