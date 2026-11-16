@@ -13,7 +13,7 @@ import { Icon } from '../icons';
 import { createRoom, openRoom, type Start } from '../lobby';
 import { navigate, roomPath } from '../route';
 import { setSettings, useSettings } from '../settings';
-import { randomTitle, useLatest } from '../titles';
+import { randomTitle, useEpisodeCounts, useLatest } from '../titles';
 import { Poster, TitlePicker } from './TitlePicker';
 
 const TOAST_MS = 2_500;
@@ -35,7 +35,12 @@ export function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const rooms = useRooms();
-  const titles = useTitles();
+  const history = useTitles();
+  // у тайтлов из истории вышли новые серии — метка «+1 серия», такие тайтлы наверху
+  const counts = useEpisodeCounts(history.filter((t) => t.count !== null).map((t) => t.alias));
+  const fresh = (t: TitleEntry) => Math.max(0, (counts[t.alias] ?? 0) - (t.count ?? Infinity));
+  const titles = [...history].sort((a, b) => Number(fresh(b) > 0) - Number(fresh(a) > 0));
+  const anyFresh = titles.some((t) => fresh(t) > 0);
   const [tab, setTab] = useState<Tab>(() => (rooms.length ? 'rooms' : titles.length ? 'history' : 'latest'));
   const valid = name.trim().length > 0;
 
@@ -124,6 +129,7 @@ export function Home() {
               >
                 {label}
                 {count > 0 && <span className="chip-count">{count}</span>}
+                {key === 'history' && anyFresh && <span className="chip-dot" aria-label="новые серии" />}
               </button>
             ))}
           </div>
@@ -153,6 +159,7 @@ export function Home() {
                     entry={e}
                     i={i}
                     busy={busy === `h:${e.alias}`}
+                    fresh={fresh(e)}
                     onOpen={() =>
                       void start(`h:${e.alias}`, {
                         alias: e.alias,
@@ -222,6 +229,14 @@ function Latest({
   );
 }
 
+/** 1 серия, 2 серии, 5 серий */
+const plural = (n: number, one: string, few: string, many: string) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  const word = m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
+  return `${n} ${word}`;
+};
+
 function Bar({ value, max }: { value: number; max: number }) {
   return max > 0 ? (
     <span className="recent-bar">
@@ -259,11 +274,14 @@ function HistoryRow({
   entry: e,
   i,
   busy,
+  fresh,
   onOpen,
 }: {
   entry: TitleEntry;
   i: number;
   busy: boolean;
+  /** сколько серий вышло с прошлого просмотра */
+  fresh: number;
   onOpen(): void;
 }) {
   const done = Object.values(e.seen).filter((v) => v >= WATCHED).length;
@@ -272,7 +290,10 @@ function HistoryRow({
       <button className="row-tap rp" onClick={onOpen} title="Продолжить в новой комнате">
         <Poster src={e.poster} />
         <span className="row-main">
-          <span className="row-title">{e.title}</span>
+          <span className="row-title">
+            {e.title}
+            {fresh > 0 && <span className="new-badge">+{plural(fresh, 'серия', 'серии', 'серий')}</span>}
+          </span>
           <span className="row-sub">
             {progress(e)}
             {done > 0 ? ` · ✓ ${done}` : ''}

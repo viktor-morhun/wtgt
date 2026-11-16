@@ -507,6 +507,14 @@ describe('комната без тайтла и с тайтлом сразу', (
   });
 });
 
+describe('счётчики серий', () => {
+  it('/api/counts: число доступных серий; неизвестные тайтлы пропускаются', async () => {
+    const { http } = await start();
+    const res = await fetch(`${http}/api/counts?alias=tokyo-revengers&alias=nope&alias=other`);
+    expect(await res.json()).toEqual({ 'tokyo-revengers': 24, other: 24 });
+  });
+});
+
 describe('поиск', () => {
   it('/api/search и /api/latest отдают карточки поисковика', async () => {
     const card = {

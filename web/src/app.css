@@ -931,6 +931,28 @@ svg.stroke text {
   opacity: 0.55;
 }
 
+/* у тайтла из истории вышли новые серии: точка на вкладке, метка у названия */
+.chip-dot {
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  display: inline-block;
+  vertical-align: middle;
+  animation: pop 0.45s var(--spring) both;
+}
+.new-badge {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
 /* поиск тайтла: поле, строки с постером; в комнате и в шторке — то же самое */
 .picker-field input {
   padding-left: 44px;

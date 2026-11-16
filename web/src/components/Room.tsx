@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
-import { positionAt } from '@wtgt/shared';
+import { isPlayable, positionAt } from '@wtgt/shared';
 import * as cmd from '../commands';
 import { getRoom, saveRoom, saveTitle, useTitles } from '../history';
 import { Icon } from '../icons';
@@ -108,7 +108,7 @@ export function Room({ code }: { code: string }) {
         at: Date.now(),
       };
       saveRoom({ ...entry, code, rate: session.rate });
-      saveTitle(entry);
+      saveTitle({ ...entry, count: release.episodes.filter(isPlayable).length });
     };
     save();
     const timer = session.paused ? undefined : setInterval(save, SAVE_MS);

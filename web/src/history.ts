@@ -40,6 +40,8 @@ export type TitleEntry = {
   at: number;
   /** id серии → просмотренная доля 0..1 */
   seen: Record<string, number>;
+  /** сколько серий было у тайтла, когда смотрели; больше стало — «+1 серия» на главной */
+  count: number | null;
 };
 
 /** Список в localStorage, общий для вкладок: свежие записи первыми, не больше max. */
@@ -145,6 +147,7 @@ const titles = store<TitleEntry>('wtgt.history', 60, (x) => {
     dub: str(r.dub),
     at,
     seen,
+    count: num(r.count),
   };
 });
 

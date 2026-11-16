@@ -30,6 +30,8 @@ type Options = {
 const HEARTBEAT_MS = 25_000;
 /** Код закрытия WS: комнаты нет и создать нельзя (неверный код или лимит). */
 export const WS_CLOSE_NO_ROOM = 4404;
+/** Столько тайтлов за один запрос /api/counts. */
+const COUNTS_MAX = 20;
 
 export async function buildApp({
   catalog,
@@ -90,6 +92,22 @@ export async function buildApp({
       }
     });
   }
+
+  // сколько серий сейчас у тайтлов из истории зрителя — для метки «+1 серия» на главной
+  app.get<{ Querystring: { alias?: string | string[] } }>('/api/counts', async (req) => {
+    const list = [req.query.alias ?? []].flat().slice(0, COUNTS_MAX);
+    const counts: Record<string, number> = {};
+    await Promise.all(
+      list.map(async (alias) => {
+        try {
+          counts[alias] = (await catalog.get(alias)).episodes.filter(isPlayable).length;
+        } catch {
+          // источник не ответил — метки просто не будет
+        }
+      }),
+    );
+    return counts;
+  });
 
   // пустое тело — комната без тайтла; { alias, episodeId?, position? } — сразу с ним
   app.post('/api/rooms', async (req, reply) => {

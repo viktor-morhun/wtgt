@@ -47,6 +47,25 @@ function useCards(url: string | null, delay: number): Result {
   return { cards: fresh?.cards ?? null, error: fresh?.error ?? null, loading: !!url && !fresh };
 }
 
+/** Сколько серий сейчас у тайтлов (до 20): для метки «+1 серия» в истории. */
+export function useEpisodeCounts(aliases: string[]): Record<string, number> {
+  const query = aliases
+    .slice(0, 20)
+    .map((a) => `alias=${encodeURIComponent(a)}`)
+    .join('&');
+  const [counts, setCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!query) return;
+    const ctl = new AbortController();
+    fetch(`/api/counts?${query}`, { signal: ctl.signal })
+      .then((r) => (r.ok ? r.json() : {}))
+      .then((c: Record<string, number>) => setCounts(c))
+      .catch(() => {});
+    return () => ctl.abort();
+  }, [query]);
+  return counts;
+}
+
 /** Случайный тайтл AniLibria с сериями — «не знаю, что смотреть». */
 export async function randomTitle(): Promise<TitleCard> {
   let res: Response;
