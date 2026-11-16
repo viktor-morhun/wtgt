@@ -7,11 +7,15 @@ import { YUMMY_API } from './yummy';
 export type Finder = {
   search(query: string): Promise<TitleCard[]>;
   latest(): Promise<TitleCard[]>;
+  /** случайный тайтл AniLibria, у которого уже есть серии */
+  random(): Promise<TitleCard>;
 };
 
 /** Столько результатов берём у каждого источника. */
 const PER_SOURCE = 12;
 const LATEST = 18;
+/** Столько случайных берём за раз: анонсы без серий отсеиваются. */
+const RANDOM_BATCH = 10;
 
 const rawLibria = z.object({
   alias: z.string(),
@@ -123,6 +127,19 @@ export function createFinder({
         // AniLibria — первыми: у неё своё видео и наша панель управления
         return [...ok(libria), ...ok(yummy)];
       });
+    },
+    async random() {
+      let cards: TitleCard[];
+      try {
+        cards = libriaCards(
+          await json(`${ANILIBRIA_ORIGIN}/api/v1/anime/releases/random?limit=${RANDOM_BATCH}`),
+        );
+      } catch {
+        throw new CatalogError('unavailable', 'AniLibria не отвечает');
+      }
+      const card = cards.find((c) => c.episodes);
+      if (!card) throw new CatalogError('unavailable', 'Не повезло — попробуй ещё раз');
+      return card;
     },
     latest() {
       return cached('latest', async () => {

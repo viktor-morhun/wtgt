@@ -2,7 +2,13 @@ import { existsSync } from 'node:fs';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import Fastify, { type FastifyServerOptions } from 'fastify';
-import { createRoomSchema, parseAlias, parseClientMessage, type ServerMessage } from '@wtgt/shared';
+import {
+  createRoomSchema,
+  isPlayable,
+  parseAlias,
+  parseClientMessage,
+  type ServerMessage,
+} from '@wtgt/shared';
 import { CatalogError, type Catalog } from './anilibria';
 import type { Client } from './hub';
 import { Rooms } from './rooms';
@@ -69,6 +75,13 @@ export async function buildApp({
         return fail(reply, e);
       }
     });
+    app.get('/api/random', async (_req, reply) => {
+      try {
+        return await finder.random();
+      } catch (e) {
+        return fail(reply, e);
+      }
+    });
     app.get('/api/latest', async (_req, reply) => {
       try {
         return await finder.latest();
@@ -90,6 +103,9 @@ export async function buildApp({
         release = await catalog.get(alias);
       } catch (e) {
         return fail(reply, e);
+      }
+      if (!release.episodes.some(isPlayable)) {
+        return reply.code(404).send({ code: 'not_found', message: 'В релизе нет доступных серий' });
       }
     }
     const code = rooms.create();

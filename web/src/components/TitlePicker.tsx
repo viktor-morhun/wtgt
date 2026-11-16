@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { isYummy, parseAlias, type TitleCard } from '@wtgt/shared';
 import { Icon } from '../icons';
-import { useLatest, useSearch } from '../titles';
+import { randomTitle, useLatest, useSearch } from '../titles';
 
 /** «2021 · ТВ · 24 эп. · AniLibria» */
 export const cardMeta = (c: TitleCard) =>
@@ -124,11 +124,35 @@ export function TitleList({
   );
 }
 
-/** «Новое на AniLibria» списком — в комнате, пока тайтл не выбран. */
+/** «Новое на AniLibria» списком — в комнате, пока тайтл не выбран; сверху — случайный тайтл. */
 export function LatestList({ onPick, pending }: { onPick(alias: string): void; pending?: string | null }) {
   const latest = useLatest();
+  const [rolling, setRolling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const roll = async () => {
+    setRolling(true);
+    setError(null);
+    try {
+      onPick((await randomTitle()).alias);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+    setRolling(false);
+  };
   return (
     <>
+      <ul className="list titles">
+        <li className="row">
+          <button className="row-tap rp" onClick={() => void roll()} disabled={rolling || !!pending}>
+            <span className="title-poster title-poster-link">{Icon.dice}</span>
+            <span className="row-main">
+              <span className="row-title">Случайное аниме</span>
+              <span className="row-sub">{error ?? 'не знаю, что смотреть'}</span>
+            </span>
+            {rolling && <span className="spinner" />}
+          </button>
+        </li>
+      </ul>
       <h3 className="picker-head">новое на AniLibria</h3>
       {latest.cards ? (
         <TitleList cards={latest.cards} onPick={onPick} pending={pending} />

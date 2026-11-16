@@ -68,6 +68,15 @@ describe('карточки тайтлов', () => {
     expect(await finder.search('a')).toEqual([]);
   });
 
+  it('случайный: первый тайтл с сериями, анонсы пропускаются', async () => {
+    const announce = { ...libria[0], alias: 'soon', episodes_total: 0 };
+    const fetch = (async () =>
+      new Response(JSON.stringify([announce, libria[0]]))) as typeof globalThis.fetch;
+    expect((await createFinder({ fetch }).random()).alias).toBe('tokyo-revengers');
+    const none = (async () => new Response(JSON.stringify([announce]))) as typeof globalThis.fetch;
+    await expect(createFinder({ fetch: none }).random()).rejects.toThrow('Не повезло');
+  });
+
   it('поиск: оба источника легли — ошибка, не кэшируется', async () => {
     let ok = false;
     const fetch = (async (url: string) =>

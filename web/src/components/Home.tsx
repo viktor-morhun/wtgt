@@ -13,7 +13,7 @@ import { Icon } from '../icons';
 import { createRoom, openRoom, type Start } from '../lobby';
 import { navigate, roomPath } from '../route';
 import { setSettings, useSettings } from '../settings';
-import { useLatest } from '../titles';
+import { randomTitle, useLatest } from '../titles';
 import { Poster, TitlePicker } from './TitlePicker';
 
 const TOAST_MS = 2_500;
@@ -46,7 +46,7 @@ export function Home() {
   }, [toast]);
 
   /** Новая комната — пустая или сразу с тайтлом; без ника сначала просим ник. */
-  const start = async (key: string, from?: Start) => {
+  const start = async (key: string, from?: Start | (() => Promise<Start>)) => {
     if (busy) return;
     if (!valid) {
       setToast('Сначала ник');
@@ -56,7 +56,7 @@ export function Home() {
     setBusy(key);
     setSettings({ name: name.trim() });
     try {
-      openRoom(await createRoom(from));
+      openRoom(await createRoom(typeof from === 'function' ? await from() : from));
     } catch (e) {
       setToast(e instanceof Error ? e.message : 'Не получилось создать комнату');
       setBusy(null);
@@ -127,7 +127,13 @@ export function Home() {
               </button>
             ))}
           </div>
-          {tab === 'latest' && <Latest onPick={(c) => void start(c.alias, { alias: c.alias })} busy={busy} />}
+          {tab === 'latest' && (
+            <Latest
+              onPick={(c) => void start(c.alias, { alias: c.alias })}
+              onRandom={() => void start('random', async () => ({ alias: (await randomTitle()).alias }))}
+              busy={busy}
+            />
+          )}
           {tab === 'rooms' &&
             (rooms.length ? (
               <ul className="list">
@@ -172,11 +178,26 @@ export function Home() {
 }
 
 /** «Новое на AniLibria» постерами: нажал — комната сразу с этим тайтлом. */
-function Latest({ onPick, busy }: { onPick(c: TitleCard): void; busy: string | null }) {
+function Latest({
+  onPick,
+  onRandom,
+  busy,
+}: {
+  onPick(c: TitleCard): void;
+  onRandom(): void;
+  busy: string | null;
+}) {
   const latest = useLatest();
   if (!latest.cards) return <div className="empty hint">{latest.error ?? <span className="spinner" />}</div>;
   return (
     <div className="poster-grid">
+      <button className="poster-card rp" onClick={onRandom} disabled={!!busy}>
+        <span className="poster-card-img poster-card-random">
+          {busy === 'random' ? <span className="spinner" /> : Icon.dice}
+        </span>
+        <span className="poster-card-title">Случайное</span>
+        <span className="poster-card-sub">не знаю, что смотреть</span>
+      </button>
       {latest.cards.map((c, i) => (
         <button
           key={c.alias}

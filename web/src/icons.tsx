@@ -71,6 +71,14 @@ export const Icon = {
       <path d="M4 9V5.5A1.5 1.5 0 0 1 5.5 4H9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M9 20H5.5A1.5 1.5 0 0 1 4 18.5V15" />
     </svg>
   ),
+  dice: (
+    <svg viewBox="0 0 24 24" aria-hidden className="stroke">
+      <rect x="4" y="4" width="16" height="16" rx="4" />
+      <circle cx="9" cy="9" r="0.6" fill="currentColor" />
+      <circle cx="15" cy="15" r="0.6" fill="currentColor" />
+      <circle cx="12" cy="12" r="0.6" fill="currentColor" />
+    </svg>
+  ),
   pip: (
     <svg viewBox="0 0 24 24" aria-hidden className="stroke">
       <rect x="3" y="5" width="18" height="14" rx="2.5" />

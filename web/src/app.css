@@ -1077,6 +1077,23 @@ svg.stroke text {
   filter: grayscale(1);
   transition: filter 0.4s var(--ease);
 }
+.poster-card-random {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--dim);
+  background: transparent;
+  color: var(--text);
+}
+.poster-card-random svg {
+  width: 40px;
+  height: 40px;
+  transition: rotate 0.6s var(--spring);
+}
+.poster-card:hover .poster-card-random svg,
+.poster-card.is-pressed .poster-card-random svg {
+  rotate: 90deg;
+}
 .poster-card-busy {
   position: absolute;
   inset: 0;

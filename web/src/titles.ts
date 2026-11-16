@@ -47,6 +47,19 @@ function useCards(url: string | null, delay: number): Result {
   return { cards: fresh?.cards ?? null, error: fresh?.error ?? null, loading: !!url && !fresh };
 }
 
+/** Случайный тайтл AniLibria с сериями — «не знаю, что смотреть». */
+export async function randomTitle(): Promise<TitleCard> {
+  let res: Response;
+  try {
+    res = await fetch('/api/random');
+  } catch {
+    throw new Error('Нет связи с сервером');
+  }
+  const body = (await res.json().catch(() => null)) as (TitleCard & { message?: string }) | null;
+  if (!res.ok || !body?.alias) throw new Error(body?.message ?? 'AniLibria не отвечает');
+  return body;
+}
+
 /** Тайтлы AniLibria и YummyAnime по названию; короче 2 символов — не ищем. */
 export const useSearch = (query: string): Result => {
   const q = query.trim();

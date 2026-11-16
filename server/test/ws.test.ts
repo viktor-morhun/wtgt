@@ -519,11 +519,16 @@ describe('поиск', () => {
       source: 'AniLibria' as const,
     };
     const { http } = await start(okCatalog, {
-      finder: { search: async (q) => (q === 'мстители' ? [card] : []), latest: async () => [card] },
+      finder: {
+        search: async (q) => (q === 'мстители' ? [card] : []),
+        latest: async () => [card],
+        random: async () => card,
+      },
     });
     expect(await (await fetch(`${http}/api/search?q=${encodeURIComponent('мстители')}`)).json()).toEqual([
       card,
     ]);
     expect(await (await fetch(`${http}/api/latest`)).json()).toEqual([card]);
+    expect(await (await fetch(`${http}/api/random`)).json()).toEqual(card);
   });
 });
